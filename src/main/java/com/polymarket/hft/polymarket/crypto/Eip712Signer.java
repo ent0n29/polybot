@@ -141,13 +141,7 @@ public final class Eip712Signer {
   private static byte[] address(String address) {
     byte[] addr = Numeric.hexStringToByteArray(address == null ? "" : address.trim());
     if (addr.length != 20) {
-      if (addr.length > 20 && addr.length <= 32) {
-        byte[] last20 = new byte[20];
-        System.arraycopy(addr, addr.length - 20, last20, 0, 20);
-        addr = last20;
-      } else {
-        throw new IllegalArgumentException("Expected 20-byte address, got " + addr.length);
-      }
+      throw new IllegalArgumentException("Expected 20-byte address, got " + addr.length);
     }
     byte[] padded = new byte[32];
     System.arraycopy(addr, 0, padded, 12, 20);

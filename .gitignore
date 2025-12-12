@@ -1,2 +1,21 @@
-\.idea
-\target
+.DS_Store
+Thumbs.db
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Maven / Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# Local config / secrets
+.env
+src/main/resources/application-local.yml

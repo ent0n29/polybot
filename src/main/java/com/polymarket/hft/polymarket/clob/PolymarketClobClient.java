@@ -2,9 +2,10 @@ package com.polymarket.hft.polymarket.clob;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.polymarket.hft.polymarket.crypto.Eip712Signer;
-import com.polymarket.hft.polymarket.crypto.PolyHmacSigner;
+import com.polymarket.hft.polymarket.auth.PolymarketAuthHeaders;
 import com.polymarket.hft.polymarket.http.PolymarketHttpTransport;
+import com.polymarket.hft.polymarket.http.HttpHeadersUtil;
+import com.polymarket.hft.polymarket.http.HttpRequestFactory;
 import com.polymarket.hft.polymarket.model.ApiCreds;
 import com.polymarket.hft.polymarket.model.ClobOrderType;
 import com.polymarket.hft.polymarket.model.OrderBook;
@@ -15,9 +16,7 @@ import org.web3j.crypto.Credentials;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpRequest;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,7 +30,7 @@ public final class PolymarketClobClient {
 
   private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
 
-  private final URI baseUri;
+  private final HttpRequestFactory requestFactory;
   private final PolymarketHttpTransport transport;
   private final ObjectMapper objectMapper;
   private final Clock clock;
@@ -50,7 +49,7 @@ public final class PolymarketClobClient {
       int chainId,
       boolean useServerTime
   ) {
-    this.baseUri = Objects.requireNonNull(baseUri, "baseUri");
+    this.requestFactory = new HttpRequestFactory(Objects.requireNonNull(baseUri, "baseUri"));
     this.transport = Objects.requireNonNull(transport, "transport");
     this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
     this.clock = Objects.requireNonNull(clock, "clock");
@@ -58,69 +57,37 @@ public final class PolymarketClobClient {
     this.useServerTime = useServerTime;
   }
 
-  private static String encode(String value) {
-    return URLEncoder.encode(value, StandardCharsets.UTF_8);
-  }
-
-  private static String[] flattenHeaders(Map<String, String> headers) {
-    if (headers == null || headers.isEmpty()) {
-      return new String[0];
-    }
-    String[] flat = new String[headers.size() * 2];
-    int i = 0;
-    for (Map.Entry<String, String> e : headers.entrySet()) {
-      flat[i++] = e.getKey();
-      flat[i++] = e.getValue();
-    }
-    return flat;
-  }
-
-  private static void applyHeaders(HttpRequest.Builder builder, Map<String, String> headers) {
-    String[] flat = flattenHeaders(headers);
-    if (flat.length == 0) {
-      return;
-    }
-    builder.headers(flat);
-  }
-
-  private static String truncate(String s) {
-    if (s == null) {
-      return "";
-    }
-    return s.length() <= 2000 ? s : s.substring(0, 2000) + "...";
-  }
-
   public long getServerTimeSeconds() {
-    String raw = getString("/time", Map.of(), Map.of());
+    String raw = getString(PolymarketClobPaths.TIME, Map.of(), Map.of());
     return Long.parseLong(raw.trim());
   }
 
   public OrderBook getOrderBook(String tokenId) {
-    return getJson("/book", Map.of("token_id", tokenId), Map.of(), OrderBook.class);
+    return getJson(PolymarketClobPaths.BOOK, Map.of("token_id", tokenId), Map.of(), OrderBook.class);
   }
 
   public BigDecimal getMinimumTickSize(String tokenId) {
-    JsonNode node = getJsonNode("/tick-size", Map.of("token_id", tokenId), Map.of());
+    JsonNode node = getJsonNode(PolymarketClobPaths.TICK_SIZE, Map.of("token_id", tokenId), Map.of());
     return node.get("minimum_tick_size").decimalValue();
   }
 
   public boolean isNegRisk(String tokenId) {
-    JsonNode node = getJsonNode("/neg-risk", Map.of("token_id", tokenId), Map.of());
+    JsonNode node = getJsonNode(PolymarketClobPaths.NEG_RISK, Map.of("token_id", tokenId), Map.of());
     return node.get("neg_risk").booleanValue();
   }
 
   public int getBaseFeeBps(String tokenId) {
-    JsonNode node = getJsonNode("/fee-rate", Map.of("token_id", tokenId), Map.of());
+    JsonNode node = getJsonNode(PolymarketClobPaths.FEE_RATE, Map.of("token_id", tokenId), Map.of());
     return node.get("base_fee").intValue();
   }
 
   public ApiCreds createApiCreds(Credentials signingCredentials, long nonce) {
-    return l1Auth(signingCredentials, HttpMethod.POST, "/auth/api-key", null, nonce, ApiCredsRaw.class)
+    return l1Auth(signingCredentials, HttpMethod.POST, PolymarketClobPaths.AUTH_API_KEY, null, nonce, ApiCredsRaw.class)
         .toCreds();
   }
 
   public ApiCreds deriveApiCreds(Credentials signingCredentials, long nonce) {
-    return l1Auth(signingCredentials, HttpMethod.GET, "/auth/derive-api-key", null, nonce, ApiCredsRaw.class)
+    return l1Auth(signingCredentials, HttpMethod.GET, PolymarketClobPaths.AUTH_DERIVE_API_KEY, null, nonce, ApiCredsRaw.class)
         .toCreds();
   }
 
@@ -168,15 +135,15 @@ public final class PolymarketClobClient {
     payload.put("deferExec", deferExec);
 
     String body = writeJson(payload);
-    Map<String, String> headers = l2Headers(signingCredentials, apiCreds, HttpMethod.POST, "/order", body);
-    return postJsonNode("/order", Map.of(), headers, body);
+    Map<String, String> headers = l2Headers(signingCredentials, apiCreds, HttpMethod.POST, PolymarketClobPaths.ORDER, body);
+    return postJsonNode(PolymarketClobPaths.ORDER, Map.of(), headers, body);
   }
 
   public JsonNode cancelOrder(Credentials signingCredentials, ApiCreds apiCreds, String orderId) {
     Map<String, Object> payload = Map.of("orderID", orderId);
     String body = writeJson(payload);
-    Map<String, String> headers = l2Headers(signingCredentials, apiCreds, HttpMethod.DELETE, "/order", body);
-    return deleteJsonNode("/order", headers, body);
+    Map<String, String> headers = l2Headers(signingCredentials, apiCreds, HttpMethod.DELETE, PolymarketClobPaths.ORDER, body);
+    return deleteJsonNode(PolymarketClobPaths.ORDER, headers, body);
   }
 
   private <T> T l1Auth(
@@ -188,16 +155,7 @@ public final class PolymarketClobClient {
       Class<T> responseType
   ) {
     long ts = authTimestampSeconds();
-    String address = signingCredentials.getAddress();
-
-    String signature = Eip712Signer.signClobAuth(signingCredentials, chainId, ts, nonce);
-
-    Map<String, String> headers = Map.of(
-        "POLY_ADDRESS", address,
-        "POLY_SIGNATURE", signature,
-        "POLY_TIMESTAMP", Long.toString(ts),
-        "POLY_NONCE", Long.toString(nonce)
-    );
+    Map<String, String> headers = PolymarketAuthHeaders.l1(signingCredentials, chainId, ts, nonce);
 
     if (method == HttpMethod.GET) {
       return getJson(path, Map.of(), headers, responseType);
@@ -216,16 +174,7 @@ public final class PolymarketClobClient {
       String body
   ) {
     long ts = authTimestampSeconds();
-    String address = signingCredentials.getAddress();
-    String sig = PolyHmacSigner.sign(creds.secret(), ts, method.name(), requestPath, body);
-
-    return Map.of(
-        "POLY_ADDRESS", address,
-        "POLY_SIGNATURE", sig,
-        "POLY_TIMESTAMP", Long.toString(ts),
-        "POLY_API_KEY", creds.key(),
-        "POLY_PASSPHRASE", creds.passphrase()
-    );
+    return PolymarketAuthHeaders.l2(signingCredentials, creds, ts, method, requestPath, body);
   }
 
   private long authTimestampSeconds() {
@@ -248,10 +197,10 @@ public final class PolymarketClobClient {
   }
 
   private <T> T getJson(String path, Map<String, String> query, Map<String, String> headers, Class<T> type) {
-    HttpRequest.Builder builder = baseRequest(path, query)
+    HttpRequest.Builder builder = requestFactory.request(path, query)
         .GET()
         .timeout(HTTP_TIMEOUT);
-    applyHeaders(builder, headers);
+    HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendJson(request, type);
   }
@@ -261,53 +210,32 @@ public final class PolymarketClobClient {
   }
 
   private <T> T postJson(String path, Map<String, String> query, Map<String, String> headers, String body, Class<T> type) {
-    HttpRequest.Builder builder = baseRequest(path, query)
+    HttpRequest.Builder builder = requestFactory.request(path, query)
         .POST(HttpRequest.BodyPublishers.ofString(body == null ? "" : body))
         .timeout(HTTP_TIMEOUT)
         .header("Content-Type", "application/json");
-    applyHeaders(builder, headers);
+    HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendJson(request, type);
   }
 
   private JsonNode deleteJsonNode(String path, Map<String, String> headers, String body) {
-    HttpRequest.Builder builder = baseRequest(path, Map.of())
+    HttpRequest.Builder builder = requestFactory.request(path, Map.of())
         .method("DELETE", HttpRequest.BodyPublishers.ofString(body == null ? "" : body))
         .timeout(HTTP_TIMEOUT)
         .header("Content-Type", "application/json");
-    applyHeaders(builder, headers);
+    HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendJson(request, JsonNode.class);
   }
 
   private String getString(String path, Map<String, String> query, Map<String, String> headers) {
-    HttpRequest.Builder builder = baseRequest(path, query)
+    HttpRequest.Builder builder = requestFactory.request(path, query)
         .GET()
         .timeout(HTTP_TIMEOUT);
-    applyHeaders(builder, headers);
+    HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendString(request);
-  }
-
-  private HttpRequest.Builder baseRequest(String path, Map<String, String> query) {
-    return HttpRequest.newBuilder(buildUri(path, query));
-  }
-
-  private URI buildUri(String path, Map<String, String> query) {
-    StringBuilder sb = new StringBuilder(baseUri.toString());
-    if (sb.charAt(sb.length() - 1) == '/' && path.startsWith("/")) {
-      sb.setLength(sb.length() - 1);
-    }
-    sb.append(path);
-
-    if (!query.isEmpty()) {
-      sb.append("?");
-      sb.append(query.entrySet().stream()
-          .map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))
-          .reduce((a, b) -> a + "&" + b)
-          .orElse(""));
-    }
-    return URI.create(sb.toString());
   }
 
   private <T> T sendJson(HttpRequest request, Class<T> type) {

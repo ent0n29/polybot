@@ -14,8 +14,6 @@ import com.polymarket.hft.polymarket.order.PolymarketOrderBuilder;
 import com.polymarket.hft.polymarket.web.LimitOrderRequest;
 import com.polymarket.hft.polymarket.web.MarketOrderRequest;
 import com.polymarket.hft.polymarket.web.OrderSubmissionResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
 
@@ -24,8 +22,6 @@ import java.util.Objects;
 
 @Service
 public class PolymarketTradingService {
-
-  private static final Logger log = LoggerFactory.getLogger(PolymarketTradingService.class);
 
   private final HftProperties properties;
   private final PolymarketAuthContext authContext;

@@ -16,7 +16,7 @@ management:
         include: health,info,metrics
 
 hft:
-  mode: LIVE
+  mode: PAPER
   risk:
     kill-switch: false
     max-order-notional-usd: 0
@@ -34,12 +34,22 @@ hft:
     use-server-time: true
     market-ws-enabled: false
     market-asset-ids: [ ]
+    rest:
+      rate-limit:
+        enabled: true
+        requests-per-second: 20
+        burst: 50
+      retry:
+        enabled: true
+        max-attempts: 3
+        initial-backoff-millis: 200
+        max-backoff-millis: 2000
     auth:
-      private-key: "0xe40ba23795d4ffedb8f0d6d5e2b198b4988c2de447fc2b3768733cd359b6f90c"
-      signature-type: 1
-      funder-address: "0xd3d7ed6e3005dd6401be16fb6a4111d1b7fb2d19"
-      api-key: "019b13cd-e885-739b-925a-0856a2fb94bf"
-      api-secret: "5fqpZMom_RKQV5QyYVDLWHVVQih6vK6mKFwQiNjsGQA="
-      api-passphrase: "71382e154ecd9d86dfdf21f69058c316268b87fcfd4158e02842b047b1721ae9"
-      nonce: 0
+      private-key: ${POLYMARKET_PRIVATE_KEY:}
+      signature-type: ${POLYMARKET_SIGNATURE_TYPE:0}
+      funder-address: ${POLYMARKET_FUNDER_ADDRESS:}
+      api-key: ${POLYMARKET_API_KEY:}
+      api-secret: ${POLYMARKET_API_SECRET:}
+      api-passphrase: ${POLYMARKET_API_PASSPHRASE:}
+      nonce: ${POLYMARKET_API_NONCE:0}
       auto-create-or-derive-api-creds: false

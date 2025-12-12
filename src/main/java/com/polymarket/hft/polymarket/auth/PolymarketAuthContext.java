@@ -10,6 +10,7 @@ import org.web3j.crypto.Credentials;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import jakarta.annotation.PostConstruct;
 
@@ -17,6 +18,8 @@ import jakarta.annotation.PostConstruct;
 public class PolymarketAuthContext {
 
   private static final Logger log = LoggerFactory.getLogger(PolymarketAuthContext.class);
+  private static final Pattern HEX_32_BYTES = Pattern.compile("0x[0-9a-fA-F]{64}");
+  private static final Pattern HEX_20_BYTES = Pattern.compile("0x[0-9a-fA-F]{40}");
 
   private final HftProperties properties;
   private final PolymarketClobClient clobClient;
@@ -35,6 +38,7 @@ public class PolymarketAuthContext {
 
     String privateKey = auth.getPrivateKey();
     if (privateKey != null && !privateKey.isBlank()) {
+      requireHex32("hft.polymarket.auth.private-key", privateKey);
       this.signerCredentials = Credentials.create(strip0x(privateKey));
     }
 
@@ -55,6 +59,11 @@ public class PolymarketAuthContext {
       ApiCreds derived = clobClient.createOrDeriveApiCreds(signer, nonce);
       this.apiCreds = derived;
       log.info("Loaded Polymarket API key creds (key={})", derived.key());
+    }
+
+    String funder = auth.getFunderAddress();
+    if (funder != null && !funder.isBlank()) {
+      requireHex20("hft.polymarket.auth.funder-address", funder);
     }
   }
 
@@ -86,5 +95,18 @@ public class PolymarketAuthContext {
     String trimmed = hex.trim();
     return trimmed.startsWith("0x") || trimmed.startsWith("0X") ? trimmed.substring(2) : trimmed;
   }
-}
 
+  private static void requireHex32(String field, String value) {
+    String trimmed = value == null ? "" : value.trim();
+    if (!HEX_32_BYTES.matcher(trimmed).matches()) {
+      throw new IllegalArgumentException(field + " must be 0x + 64 hex chars");
+    }
+  }
+
+  private static void requireHex20(String field, String value) {
+    String trimmed = value == null ? "" : value.trim();
+    if (!HEX_20_BYTES.matcher(trimmed).matches()) {
+      throw new IllegalArgumentException(field + " must be 0x + 40 hex chars");
+    }
+  }
+}
