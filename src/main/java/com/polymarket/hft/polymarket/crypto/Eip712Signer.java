@@ -5,14 +5,13 @@ import org.web3j.crypto.Hash;
 import org.web3j.crypto.Sign;
 import org.web3j.utils.Numeric;
 
+import lombok.experimental.UtilityClass;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public final class Eip712Signer {
-
-  private Eip712Signer() {
-  }
+@UtilityClass
+public class Eip712Signer {
 
   public static String signClobAuth(Credentials credentials, int chainId, long timestampSeconds, long nonce) {
     String address = credentials.getAddress();

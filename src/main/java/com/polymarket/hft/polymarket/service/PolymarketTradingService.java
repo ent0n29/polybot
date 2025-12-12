@@ -14,6 +14,7 @@ import com.polymarket.hft.polymarket.order.PolymarketOrderBuilder;
 import com.polymarket.hft.polymarket.web.LimitOrderRequest;
 import com.polymarket.hft.polymarket.web.MarketOrderRequest;
 import com.polymarket.hft.polymarket.web.OrderSubmissionResult;
+import com.polymarket.hft.polymarket.web.PolymarketHealthResponse;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -127,6 +128,39 @@ public class PolymarketTradingService {
     Credentials signer = authContext.requireSignerCredentials();
     ApiCreds creds = authContext.requireApiCreds();
     return clobClient.cancelOrder(signer, creds, orderId);
+  }
+
+  public PolymarketHealthResponse getHealth(boolean deep, String tokenId) {
+    HftProperties.Polymarket polymarket = properties.polymarket();
+    Long serverTime = null;
+    OrderBook orderBook = null;
+    String deepError = null;
+
+    if (deep) {
+      try {
+        serverTime = clobClient.getServerTimeSeconds();
+        if (tokenId != null && !tokenId.isBlank()) {
+          orderBook = clobClient.getOrderBook(tokenId);
+        }
+      } catch (Exception e) {
+        deepError = e.toString();
+      }
+    }
+
+    return new PolymarketHealthResponse(
+        properties.mode().name(),
+        polymarket.clobRestUrl(),
+        polymarket.clobWsUrl(),
+        polymarket.chainId(),
+        polymarket.useServerTime(),
+        polymarket.marketWsEnabled(),
+        polymarket.userWsEnabled(),
+        deep,
+        tokenId,
+        serverTime,
+        orderBook,
+        deepError
+    );
   }
 
   private PolymarketOrderBuilder orderBuilder(Credentials signer) {

@@ -12,10 +12,24 @@ import org.springframework.context.annotation.Configuration;
 
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.time.Duration;
 import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
 public class PolymarketConfiguration {
+
+  @Bean
+  public Clock clock() {
+    return Clock.systemUTC();
+  }
+
+  @Bean
+  public HttpClient httpClient() {
+    return HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
+        .version(HttpClient.Version.HTTP_1_1)
+        .build();
+  }
 
   @Bean
   public PolymarketHttpTransport polymarketHttpTransport(

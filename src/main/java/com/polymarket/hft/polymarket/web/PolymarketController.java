@@ -23,6 +23,14 @@ public class PolymarketController {
   private final @NonNull PolymarketTradingService tradingService;
   private final @NonNull ClobMarketWebSocketClient marketWebSocketClient;
 
+  @GetMapping("/health")
+  public ResponseEntity<PolymarketHealthResponse> getHealth(
+      @RequestParam(name = "deep", required = false, defaultValue = "false") boolean deep,
+      @RequestParam(name = "tokenId", required = false) String tokenId
+  ) {
+    return ResponseEntity.ok(tradingService.getHealth(deep, tokenId));
+  }
+
   @GetMapping("/orderbook/{tokenId}")
   public ResponseEntity<OrderBook> getOrderBook(@PathVariable String tokenId) {
     return ResponseEntity.ok(tradingService.getOrderBook(tokenId));

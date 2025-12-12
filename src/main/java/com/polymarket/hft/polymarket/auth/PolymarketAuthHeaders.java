@@ -3,16 +3,15 @@ package com.polymarket.hft.polymarket.auth;
 import com.polymarket.hft.polymarket.crypto.Eip712Signer;
 import com.polymarket.hft.polymarket.crypto.PolyHmacSigner;
 import com.polymarket.hft.polymarket.model.ApiCreds;
+import lombok.experimental.UtilityClass;
 import org.springframework.http.HttpMethod;
 import org.web3j.crypto.Credentials;
 
 import java.util.Map;
 import java.util.Objects;
 
-public final class PolymarketAuthHeaders {
-
-  private PolymarketAuthHeaders() {
-  }
+@UtilityClass
+public class PolymarketAuthHeaders {
 
   public static Map<String, String> l1(
       Credentials signingCredentials,
@@ -57,4 +56,3 @@ public final class PolymarketAuthHeaders {
     );
   }
 }
-

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.polymarket.hft.config.HftProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,7 @@ public class ClobMarketWebSocketClient {
   });
 
   private volatile WebSocket webSocket;
+  @Getter
   private volatile boolean started = false;
 
   private static URI buildMarketWsUri(String baseWsUrl) {
@@ -76,10 +78,6 @@ public class ClobMarketWebSocketClient {
 
   public Optional<TopOfBook> getTopOfBook(String assetId) {
     return Optional.ofNullable(topOfBookByAssetId.get(assetId));
-  }
-
-  public boolean isStarted() {
-    return started;
   }
 
   @PostConstruct
@@ -169,9 +167,8 @@ public class ClobMarketWebSocketClient {
 
     BigDecimal bestBid = extractBestPrice(bidsNode, true);
     BigDecimal bestAsk = extractBestPrice(asksNode, false);
-    TopOfBook prev = topOfBookByAssetId.get(assetId);
 
-    topOfBookByAssetId.put(assetId, new TopOfBook(
+    topOfBookByAssetId.compute(assetId, (k, prev) -> new TopOfBook(
         bestBid,
         bestAsk,
         prev == null ? null : prev.lastTradePrice(),
@@ -192,8 +189,7 @@ public class ClobMarketWebSocketClient {
       }
       BigDecimal bestBid = parseDecimal(change.path("best_bid").asText(null));
       BigDecimal bestAsk = parseDecimal(change.path("best_ask").asText(null));
-      TopOfBook prev = topOfBookByAssetId.get(assetId);
-      topOfBookByAssetId.put(assetId, new TopOfBook(
+      topOfBookByAssetId.compute(assetId, (k, prev) -> new TopOfBook(
           bestBid != null ? bestBid : (prev == null ? null : prev.bestBid()),
           bestAsk != null ? bestAsk : (prev == null ? null : prev.bestAsk()),
           prev == null ? null : prev.lastTradePrice(),
@@ -208,8 +204,7 @@ public class ClobMarketWebSocketClient {
       return;
     }
     BigDecimal price = parseDecimal(node.path("price").asText(null));
-    TopOfBook prev = topOfBookByAssetId.get(assetId);
-    topOfBookByAssetId.put(assetId, new TopOfBook(
+    topOfBookByAssetId.compute(assetId, (k, prev) -> new TopOfBook(
         prev == null ? null : prev.bestBid(),
         prev == null ? null : prev.bestAsk(),
         price,

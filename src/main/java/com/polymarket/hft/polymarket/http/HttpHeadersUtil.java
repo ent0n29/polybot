@@ -3,10 +3,10 @@ package com.polymarket.hft.polymarket.http;
 import java.net.http.HttpRequest;
 import java.util.Map;
 
-public final class HttpHeadersUtil {
+import lombok.experimental.UtilityClass;
 
-  private HttpHeadersUtil() {
-  }
+@UtilityClass
+public class HttpHeadersUtil {
 
   public static void apply(HttpRequest.Builder builder, Map<String, String> headers) {
     String[] flat = flatten(headers);
@@ -29,4 +29,3 @@ public final class HttpHeadersUtil {
     return flat;
   }
 }
-
