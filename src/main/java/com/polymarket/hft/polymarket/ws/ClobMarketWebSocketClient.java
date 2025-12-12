@@ -3,9 +3,11 @@ package com.polymarket.hft.polymarket.ws;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.polymarket.hft.config.HftProperties;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -16,19 +18,18 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class ClobMarketWebSocketClient {
 
-  private static final Logger log = LoggerFactory.getLogger(ClobMarketWebSocketClient.class);
-
-  private final HftProperties properties;
-  private final HttpClient httpClient;
-  private final ObjectMapper objectMapper;
-  private final Clock clock;
+  private final @NonNull HftProperties properties;
+  private final @NonNull HttpClient httpClient;
+  private final @NonNull ObjectMapper objectMapper;
+  private final @NonNull Clock clock;
 
   private final Map<String, TopOfBook> topOfBookByAssetId = new ConcurrentHashMap<>();
   private final ScheduledExecutorService pingExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -39,18 +40,6 @@ public class ClobMarketWebSocketClient {
 
   private volatile WebSocket webSocket;
   private volatile boolean started = false;
-
-  public ClobMarketWebSocketClient(
-      HftProperties properties,
-      HttpClient httpClient,
-      ObjectMapper objectMapper,
-      Clock clock
-  ) {
-    this.properties = Objects.requireNonNull(properties, "properties");
-    this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
-    this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
-    this.clock = Objects.requireNonNull(clock, "clock");
-  }
 
   private static URI buildMarketWsUri(String baseWsUrl) {
     String base = baseWsUrl.endsWith("/") ? baseWsUrl.substring(0, baseWsUrl.length() - 1) : baseWsUrl;
@@ -93,13 +82,13 @@ public class ClobMarketWebSocketClient {
     return started;
   }
 
-  @jakarta.annotation.PostConstruct
+  @PostConstruct
   void startIfEnabled() {
-    HftProperties.Polymarket polymarket = properties.getPolymarket();
-    if (!polymarket.isMarketWsEnabled()) {
+    HftProperties.Polymarket polymarket = properties.polymarket();
+    if (!polymarket.marketWsEnabled()) {
       return;
     }
-    List<String> assets = polymarket.getMarketAssetIds();
+    List<String> assets = polymarket.marketAssetIds();
     if (assets == null || assets.isEmpty()) {
       log.warn("Market WS enabled, but no asset IDs configured (hft.polymarket.market-asset-ids).");
       return;
@@ -113,7 +102,7 @@ public class ClobMarketWebSocketClient {
     }
     started = true;
 
-    URI wsUri = buildMarketWsUri(properties.getPolymarket().getClobWsUrl());
+    URI wsUri = buildMarketWsUri(properties.polymarket().clobWsUrl());
     log.info("Connecting to CLOB market websocket: {}", wsUri);
 
     CompletableFuture<WebSocket> cf = httpClient.newWebSocketBuilder()

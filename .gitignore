@@ -15,6 +15,7 @@ target/
 *.war
 *.ear
 hs_err_pid*
+.mvn/repository/
 
 # Local config / secrets
 .env

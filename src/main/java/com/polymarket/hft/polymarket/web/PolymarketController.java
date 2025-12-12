@@ -6,6 +6,8 @@ import com.polymarket.hft.polymarket.service.PolymarketTradingService;
 import com.polymarket.hft.polymarket.ws.ClobMarketWebSocketClient;
 import com.polymarket.hft.polymarket.ws.TopOfBook;
 import jakarta.validation.Valid;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -15,15 +17,11 @@ import java.math.BigDecimal;
 @RestController
 @RequestMapping("/api/polymarket")
 @Validated
+@RequiredArgsConstructor
 public class PolymarketController {
 
-  private final PolymarketTradingService tradingService;
-  private final ClobMarketWebSocketClient marketWebSocketClient;
-
-  public PolymarketController(PolymarketTradingService tradingService, ClobMarketWebSocketClient marketWebSocketClient) {
-    this.tradingService = tradingService;
-    this.marketWebSocketClient = marketWebSocketClient;
-  }
+  private final @NonNull PolymarketTradingService tradingService;
+  private final @NonNull ClobMarketWebSocketClient marketWebSocketClient;
 
   @GetMapping("/orderbook/{tokenId}")
   public ResponseEntity<OrderBook> getOrderBook(@PathVariable String tokenId) {

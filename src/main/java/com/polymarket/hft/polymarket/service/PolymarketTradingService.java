@@ -14,33 +14,26 @@ import com.polymarket.hft.polymarket.order.PolymarketOrderBuilder;
 import com.polymarket.hft.polymarket.web.LimitOrderRequest;
 import com.polymarket.hft.polymarket.web.MarketOrderRequest;
 import com.polymarket.hft.polymarket.web.OrderSubmissionResult;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
 
 import java.math.BigDecimal;
-import java.util.Objects;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class PolymarketTradingService {
 
-  private final HftProperties properties;
-  private final PolymarketAuthContext authContext;
-  private final PolymarketClobClient clobClient;
-  private final ObjectMapper objectMapper;
-
-  public PolymarketTradingService(
-      HftProperties properties,
-      PolymarketAuthContext authContext,
-      PolymarketClobClient clobClient,
-      ObjectMapper objectMapper
-  ) {
-    this.properties = Objects.requireNonNull(properties, "properties");
-    this.authContext = Objects.requireNonNull(authContext, "authContext");
-    this.clobClient = Objects.requireNonNull(clobClient, "clobClient");
-    this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
-  }
+  private final @NonNull HftProperties properties;
+  private final @NonNull PolymarketAuthContext authContext;
+  private final @NonNull PolymarketClobClient clobClient;
+  private final @NonNull ObjectMapper objectMapper;
 
   public OrderBook getOrderBook(String tokenId) {
+    log.info("Fetching order book for tokenId={}", tokenId);
     return clobClient.getOrderBook(tokenId);
   }
 
@@ -53,7 +46,7 @@ public class PolymarketTradingService {
   }
 
   public OrderSubmissionResult placeLimitOrder(LimitOrderRequest request) {
-    if (properties.getRisk().isKillSwitch()) {
+    if (properties.risk().killSwitch()) {
       throw new IllegalStateException("Trading disabled by kill switch (hft.risk.kill-switch=true)");
     }
     enforceRiskLimits(request.side(), request.price(), request.size());
@@ -72,8 +65,8 @@ public class PolymarketTradingService {
         request.taker()
     );
 
-    if (properties.getMode() == HftProperties.TradingMode.PAPER) {
-      return new OrderSubmissionResult(properties.getMode(), order, null);
+    if (properties.mode() == HftProperties.TradingMode.PAPER) {
+      return new OrderSubmissionResult(properties.mode(), order, null);
     }
 
     ApiCreds creds = authContext.requireApiCreds();
@@ -85,11 +78,11 @@ public class PolymarketTradingService {
         orderType,
         request.deferExec() != null && request.deferExec()
     );
-    return new OrderSubmissionResult(properties.getMode(), order, resp);
+    return new OrderSubmissionResult(properties.mode(), order, resp);
   }
 
   public OrderSubmissionResult placeMarketOrder(MarketOrderRequest request) {
-    if (properties.getRisk().isKillSwitch()) {
+    if (properties.risk().killSwitch()) {
       throw new IllegalStateException("Trading disabled by kill switch (hft.risk.kill-switch=true)");
     }
     enforceMarketRiskLimits(request.side(), request.price(), request.amount());
@@ -107,8 +100,8 @@ public class PolymarketTradingService {
         request.taker()
     );
 
-    if (properties.getMode() == HftProperties.TradingMode.PAPER) {
-      return new OrderSubmissionResult(properties.getMode(), order, null);
+    if (properties.mode() == HftProperties.TradingMode.PAPER) {
+      return new OrderSubmissionResult(properties.mode(), order, null);
     }
 
     ApiCreds creds = authContext.requireApiCreds();
@@ -120,13 +113,13 @@ public class PolymarketTradingService {
         orderType,
         request.deferExec() != null && request.deferExec()
     );
-    return new OrderSubmissionResult(properties.getMode(), order, resp);
+    return new OrderSubmissionResult(properties.mode(), order, resp);
   }
 
   public JsonNode cancelOrder(String orderId) {
-    if (properties.getMode() == HftProperties.TradingMode.PAPER) {
+    if (properties.mode() == HftProperties.TradingMode.PAPER) {
       return objectMapper.createObjectNode()
-          .put("mode", properties.getMode().name())
+          .put("mode", properties.mode().name())
           .put("canceled", true)
           .put("orderId", orderId);
     }
@@ -137,13 +130,13 @@ public class PolymarketTradingService {
   }
 
   private PolymarketOrderBuilder orderBuilder(Credentials signer) {
-    HftProperties.Polymarket polymarket = properties.getPolymarket();
-    HftProperties.Auth auth = polymarket.getAuth();
+    HftProperties.Polymarket polymarket = properties.polymarket();
+    HftProperties.Auth auth = polymarket.auth();
     return new PolymarketOrderBuilder(
-        polymarket.getChainId(),
+        polymarket.chainId(),
         signer,
-        auth.getSignatureType(),
-        auth.getFunderAddress()
+        auth.signatureType(),
+        auth.funderAddress()
     );
   }
 
@@ -163,13 +156,13 @@ public class PolymarketTradingService {
     if (size == null || price == null) {
       return;
     }
-    BigDecimal maxSize = properties.getRisk().getMaxOrderSize();
+    BigDecimal maxSize = properties.risk().maxOrderSize();
     if (maxSize != null && maxSize.compareTo(BigDecimal.ZERO) > 0 && size.compareTo(maxSize) > 0) {
       throw new IllegalArgumentException("Order size exceeds maxOrderSize (" + maxSize + ")");
     }
 
     BigDecimal notional = price.multiply(size);
-    BigDecimal maxNotional = properties.getRisk().getMaxOrderNotionalUsd();
+    BigDecimal maxNotional = properties.risk().maxOrderNotionalUsd();
     if (maxNotional != null && maxNotional.compareTo(BigDecimal.ZERO) > 0 && notional.compareTo(maxNotional) > 0) {
       throw new IllegalArgumentException("Order notional exceeds maxOrderNotionalUsd (" + maxNotional + ")");
     }
@@ -180,7 +173,7 @@ public class PolymarketTradingService {
       return;
     }
     BigDecimal notional = side == OrderSide.BUY ? amount : amount.multiply(price);
-    BigDecimal maxNotional = properties.getRisk().getMaxOrderNotionalUsd();
+    BigDecimal maxNotional = properties.risk().maxOrderNotionalUsd();
     if (maxNotional != null && maxNotional.compareTo(BigDecimal.ZERO) > 0 && notional.compareTo(maxNotional) > 0) {
       throw new IllegalArgumentException("Order notional exceeds maxOrderNotionalUsd (" + maxNotional + ")");
     }

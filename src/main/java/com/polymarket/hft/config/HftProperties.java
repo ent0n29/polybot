@@ -1,37 +1,37 @@
 package com.polymarket.hft.config;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 
-@ConfigurationProperties(prefix="hft")
-public class HftProperties {
+@Validated
+@ConfigurationProperties(prefix = "hft")
+public record HftProperties(
+    TradingMode mode,
+    @Valid Polymarket polymarket,
+    @Valid Risk risk,
+    @Valid Strategy strategy
+) {
 
-  private final Polymarket polymarket = new Polymarket();
-  private final Risk risk = new Risk();
-  private final Strategy strategy = new Strategy();
-  private TradingMode mode = TradingMode.PAPER;
-
-  public TradingMode getMode() {
-    return mode;
-  }
-
-  public void setMode(TradingMode mode) {
-    this.mode = mode;
-  }
-
-  public Polymarket getPolymarket() {
-    return polymarket;
-  }
-
-  public Risk getRisk() {
-    return risk;
-  }
-
-  public Strategy getStrategy() {
-    return strategy;
+  public HftProperties {
+    if (mode == null) {
+      mode = TradingMode.PAPER;
+    }
+    if (polymarket == null) {
+      polymarket = new Polymarket();
+    }
+    if (risk == null) {
+      risk = new Risk();
+    }
+    if (strategy == null) {
+      strategy = new Strategy();
+    }
   }
 
   public enum TradingMode {
@@ -39,316 +39,194 @@ public class HftProperties {
     LIVE,
   }
 
-  public static final class Polymarket {
-    private final List<String> marketAssetIds = new ArrayList<>();
-    private final List<String> userMarketIds = new ArrayList<>();
-    private final Rest rest = new Rest();
-    private final Auth auth = new Auth();
-    private String clobRestUrl = "https://clob.polymarket.com";
-    private String clobWsUrl = "wss://ws-subscriptions-clob.polymarket.com";
-    private int chainId = 137;
-    private boolean useServerTime = true;
-    private boolean marketWsEnabled = false;
-    private boolean userWsEnabled = false;
-
-    public String getClobRestUrl() {
-      return clobRestUrl;
+  public record Polymarket(
+      String clobRestUrl,
+      String clobWsUrl,
+      @Min(1) Integer chainId,
+      Boolean useServerTime,
+      Boolean marketWsEnabled,
+      Boolean userWsEnabled,
+      List<String> marketAssetIds,
+      List<String> userMarketIds,
+      @Valid Rest rest,
+      @Valid Auth auth
+  ) {
+    public Polymarket {
+      if (clobRestUrl == null || clobRestUrl.isBlank()) {
+        clobRestUrl = "https://clob.polymarket.com";
+      }
+      if (clobWsUrl == null || clobWsUrl.isBlank()) {
+        clobWsUrl = "wss://ws-subscriptions-clob.polymarket.com";
+      }
+      if (chainId == null) {
+        chainId = 137;
+      }
+      if (useServerTime == null) {
+        useServerTime = true;
+      }
+      if (marketWsEnabled == null) {
+        marketWsEnabled = false;
+      }
+      if (userWsEnabled == null) {
+        userWsEnabled = false;
+      }
+      marketAssetIds = marketAssetIds == null ? List.of() : List.copyOf(marketAssetIds);
+      userMarketIds = userMarketIds == null ? List.of() : List.copyOf(userMarketIds);
+      if (rest == null) {
+        rest = new Rest();
+      }
+      if (auth == null) {
+        auth = new Auth();
+      }
     }
 
-    public void setClobRestUrl(String clobRestUrl) {
-      this.clobRestUrl = clobRestUrl;
-    }
-
-    public String getClobWsUrl() {
-      return clobWsUrl;
-    }
-
-    public void setClobWsUrl(String clobWsUrl) {
-      this.clobWsUrl = clobWsUrl;
-    }
-
-    public int getChainId() {
-      return chainId;
-    }
-
-    public void setChainId(int chainId) {
-      this.chainId = chainId;
-    }
-
-    public boolean isUseServerTime() {
-      return useServerTime;
-    }
-
-    public void setUseServerTime(boolean useServerTime) {
-      this.useServerTime = useServerTime;
-    }
-
-    public boolean isMarketWsEnabled() {
-      return marketWsEnabled;
-    }
-
-    public void setMarketWsEnabled(boolean marketWsEnabled) {
-      this.marketWsEnabled = marketWsEnabled;
-    }
-
-    public List<String> getMarketAssetIds() {
-      return marketAssetIds;
-    }
-
-    public boolean isUserWsEnabled() {
-      return userWsEnabled;
-    }
-
-    public void setUserWsEnabled(boolean userWsEnabled) {
-      this.userWsEnabled = userWsEnabled;
-    }
-
-    public List<String> getUserMarketIds() {
-      return userMarketIds;
-    }
-
-    public Rest getRest() {
-      return rest;
-    }
-
-    public Auth getAuth() {
-      return auth;
+    public Polymarket() {
+      this(null, null, null, null, null, null, null, null, null, null);
     }
   }
 
-  public static final class Rest {
-    private final RateLimit rateLimit = new RateLimit();
-    private final Retry retry = new Retry();
-
-    public RateLimit getRateLimit() {
-      return rateLimit;
+  public record Rest(@Valid RateLimit rateLimit, @Valid Retry retry) {
+    public Rest {
+      if (rateLimit == null) {
+        rateLimit = new RateLimit();
+      }
+      if (retry == null) {
+        retry = new Retry();
+      }
     }
 
-    public Retry getRetry() {
-      return retry;
-    }
-  }
-
-  public static final class RateLimit {
-    private boolean enabled = true;
-    private double requestsPerSecond = 20.0;
-    private int burst = 50;
-
-    public boolean isEnabled() {
-      return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-      this.enabled = enabled;
-    }
-
-    public double getRequestsPerSecond() {
-      return requestsPerSecond;
-    }
-
-    public void setRequestsPerSecond(double requestsPerSecond) {
-      this.requestsPerSecond = requestsPerSecond;
-    }
-
-    public int getBurst() {
-      return burst;
-    }
-
-    public void setBurst(int burst) {
-      this.burst = burst;
+    public Rest() {
+      this(null, null);
     }
   }
 
-  public static final class Retry {
-    private boolean enabled = true;
-    private int maxAttempts = 3;
-    private long initialBackoffMillis = 200;
-    private long maxBackoffMillis = 2_000;
-
-    public boolean isEnabled() {
-      return enabled;
+  public record RateLimit(
+      @NotNull Boolean enabled,
+      @NotNull @PositiveOrZero Double requestsPerSecond,
+      @NotNull @PositiveOrZero Integer burst
+  ) {
+    public RateLimit {
+      if (enabled == null) {
+        enabled = true;
+      }
+      if (requestsPerSecond == null) {
+        requestsPerSecond = 20.0;
+      }
+      if (burst == null) {
+        burst = 50;
+      }
     }
 
-    public void setEnabled(boolean enabled) {
-      this.enabled = enabled;
-    }
-
-    public int getMaxAttempts() {
-      return maxAttempts;
-    }
-
-    public void setMaxAttempts(int maxAttempts) {
-      this.maxAttempts = maxAttempts;
-    }
-
-    public long getInitialBackoffMillis() {
-      return initialBackoffMillis;
-    }
-
-    public void setInitialBackoffMillis(long initialBackoffMillis) {
-      this.initialBackoffMillis = initialBackoffMillis;
-    }
-
-    public long getMaxBackoffMillis() {
-      return maxBackoffMillis;
-    }
-
-    public void setMaxBackoffMillis(long maxBackoffMillis) {
-      this.maxBackoffMillis = maxBackoffMillis;
+    public RateLimit() {
+      this(null, null, null);
     }
   }
 
-  public static final class Auth {
-    private String privateKey;
-    private int signatureType = 0;
-    private String funderAddress;
-
-    private String apiKey;
-    private String apiSecret;
-    private String apiPassphrase;
-
-    private long nonce = 0;
-    private boolean autoCreateOrDeriveApiCreds = false;
-
-    public String getPrivateKey() {
-      return privateKey;
+  public record Retry(
+      @NotNull Boolean enabled,
+      @NotNull @Min(1) Integer maxAttempts,
+      @NotNull @PositiveOrZero Long initialBackoffMillis,
+      @NotNull @PositiveOrZero Long maxBackoffMillis
+  ) {
+    public Retry {
+      if (enabled == null) {
+        enabled = true;
+      }
+      if (maxAttempts == null) {
+        maxAttempts = 3;
+      }
+      if (initialBackoffMillis == null) {
+        initialBackoffMillis = 200L;
+      }
+      if (maxBackoffMillis == null) {
+        maxBackoffMillis = 2_000L;
+      }
     }
 
-    public void setPrivateKey(String privateKey) {
-      this.privateKey = privateKey;
-    }
-
-    public int getSignatureType() {
-      return signatureType;
-    }
-
-    public void setSignatureType(int signatureType) {
-      this.signatureType = signatureType;
-    }
-
-    public String getFunderAddress() {
-      return funderAddress;
-    }
-
-    public void setFunderAddress(String funderAddress) {
-      this.funderAddress = funderAddress;
-    }
-
-    public String getApiKey() {
-      return apiKey;
-    }
-
-    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
-    }
-
-    public String getApiSecret() {
-      return apiSecret;
-    }
-
-    public void setApiSecret(String apiSecret) {
-      this.apiSecret = apiSecret;
-    }
-
-    public String getApiPassphrase() {
-      return apiPassphrase;
-    }
-
-    public void setApiPassphrase(String apiPassphrase) {
-      this.apiPassphrase = apiPassphrase;
-    }
-
-    public long getNonce() {
-      return nonce;
-    }
-
-    public void setNonce(long nonce) {
-      this.nonce = nonce;
-    }
-
-    public boolean isAutoCreateOrDeriveApiCreds() {
-      return autoCreateOrDeriveApiCreds;
-    }
-
-    public void setAutoCreateOrDeriveApiCreds(boolean autoCreateOrDeriveApiCreds) {
-      this.autoCreateOrDeriveApiCreds = autoCreateOrDeriveApiCreds;
+    public Retry() {
+      this(null, null, null, null);
     }
   }
 
-  public static final class Risk {
-    private boolean killSwitch = false;
-    private BigDecimal maxOrderNotionalUsd = BigDecimal.ZERO;
-    private BigDecimal maxOrderSize = BigDecimal.ZERO;
-
-    public boolean isKillSwitch() {
-      return killSwitch;
+  public record Auth(
+      String privateKey,
+      @NotNull @Min(0) Integer signatureType,
+      String funderAddress,
+      String apiKey,
+      String apiSecret,
+      String apiPassphrase,
+      @NotNull @PositiveOrZero Long nonce,
+      @NotNull Boolean autoCreateOrDeriveApiCreds
+  ) {
+    public Auth {
+      if (signatureType == null) {
+        signatureType = 0;
+      }
+      if (nonce == null) {
+        nonce = 0L;
+      }
+      if (autoCreateOrDeriveApiCreds == null) {
+        autoCreateOrDeriveApiCreds = false;
+      }
     }
 
-    public void setKillSwitch(boolean killSwitch) {
-      this.killSwitch = killSwitch;
-    }
-
-    public BigDecimal getMaxOrderNotionalUsd() {
-      return maxOrderNotionalUsd;
-    }
-
-    public void setMaxOrderNotionalUsd(BigDecimal maxOrderNotionalUsd) {
-      this.maxOrderNotionalUsd = maxOrderNotionalUsd;
-    }
-
-    public BigDecimal getMaxOrderSize() {
-      return maxOrderSize;
-    }
-
-    public void setMaxOrderSize(BigDecimal maxOrderSize) {
-      this.maxOrderSize = maxOrderSize;
+    public Auth() {
+      this(null, null, null, null, null, null, null, null);
     }
   }
 
-  public static final class Strategy {
-    private final MidpointMaker midpointMaker = new MidpointMaker();
+  public record Risk(
+      boolean killSwitch,
+      @NotNull @PositiveOrZero BigDecimal maxOrderNotionalUsd,
+      @NotNull @PositiveOrZero BigDecimal maxOrderSize
+  ) {
+    public Risk {
+      if (maxOrderNotionalUsd == null) {
+        maxOrderNotionalUsd = BigDecimal.ZERO;
+      }
+      if (maxOrderSize == null) {
+        maxOrderSize = BigDecimal.ZERO;
+      }
+    }
 
-    public MidpointMaker getMidpointMaker() {
-      return midpointMaker;
+    public Risk() {
+      this(false, null, null);
     }
   }
 
-  public static final class MidpointMaker {
-    private boolean enabled = false;
-    private BigDecimal quoteSize = BigDecimal.valueOf(5);
-    private BigDecimal spread = BigDecimal.valueOf(0.01);
-    private long refreshMillis = 1_000;
-
-    public boolean isEnabled() {
-      return enabled;
+  public record Strategy(@Valid MidpointMaker midpointMaker) {
+    public Strategy {
+      if (midpointMaker == null) {
+        midpointMaker = new MidpointMaker();
+      }
     }
 
-    public void setEnabled(boolean enabled) {
-      this.enabled = enabled;
+    public Strategy() {
+      this(null);
+    }
+  }
+
+  public record MidpointMaker(
+      boolean enabled,
+      @NotNull @PositiveOrZero BigDecimal quoteSize,
+      @NotNull @PositiveOrZero BigDecimal spread,
+      @NotNull @Min(1) Long refreshMillis
+  ) {
+    public MidpointMaker {
+      if (quoteSize == null) {
+        quoteSize = BigDecimal.valueOf(5);
+      }
+      if (spread == null) {
+        spread = BigDecimal.valueOf(0.01);
+      }
+      if (refreshMillis == null) {
+        refreshMillis = 1_000L;
+      }
     }
 
-    public BigDecimal getQuoteSize() {
-      return quoteSize;
-    }
-
-    public void setQuoteSize(BigDecimal quoteSize) {
-      this.quoteSize = quoteSize;
-    }
-
-    public BigDecimal getSpread() {
-      return spread;
-    }
-
-    public void setSpread(BigDecimal spread) {
-      this.spread = spread;
-    }
-
-    public long getRefreshMillis() {
-      return refreshMillis;
-    }
-
-    public void setRefreshMillis(long refreshMillis) {
-      this.refreshMillis = refreshMillis;
+    public MidpointMaker() {
+      this(false, null, null, null);
     }
   }
 }
+

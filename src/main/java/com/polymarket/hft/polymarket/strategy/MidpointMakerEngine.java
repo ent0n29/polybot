@@ -11,8 +11,9 @@ import com.polymarket.hft.polymarket.ws.ClobMarketWebSocketClient;
 import com.polymarket.hft.polymarket.ws.TopOfBook;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -20,7 +21,6 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -28,14 +28,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class MidpointMakerEngine {
 
-  private static final Logger log = LoggerFactory.getLogger(MidpointMakerEngine.class);
   private static final MathContext MIDPOINT_CTX = new MathContext(18, RoundingMode.HALF_UP);
 
-  private final HftProperties properties;
-  private final ClobMarketWebSocketClient marketWs;
-  private final PolymarketTradingService tradingService;
+  private final @NonNull HftProperties properties;
+  private final @NonNull ClobMarketWebSocketClient marketWs;
+  private final @NonNull PolymarketTradingService tradingService;
 
   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
     Thread t = new Thread(r, "midpoint-maker");
@@ -43,16 +44,6 @@ public class MidpointMakerEngine {
     return t;
   });
   private final Map<String, QuoteState> quotesByTokenId = new ConcurrentHashMap<>();
-
-  public MidpointMakerEngine(
-      HftProperties properties,
-      ClobMarketWebSocketClient marketWs,
-      PolymarketTradingService tradingService
-  ) {
-    this.properties = Objects.requireNonNull(properties, "properties");
-    this.marketWs = Objects.requireNonNull(marketWs, "marketWs");
-    this.tradingService = Objects.requireNonNull(tradingService, "tradingService");
-  }
 
   private static BigDecimal clamp(BigDecimal v, BigDecimal min, BigDecimal max) {
     if (v.compareTo(min) < 0) {
@@ -89,21 +80,21 @@ public class MidpointMakerEngine {
 
   @PostConstruct
   void startIfEnabled() {
-    HftProperties.MidpointMaker cfg = properties.getStrategy().getMidpointMaker();
-    if (!cfg.isEnabled()) {
+    HftProperties.MidpointMaker cfg = properties.strategy().midpointMaker();
+    if (!cfg.enabled()) {
       return;
     }
-    if (!properties.getPolymarket().isMarketWsEnabled()) {
+    if (!properties.polymarket().marketWsEnabled()) {
       log.warn("midpoint-maker enabled, but market WS disabled (hft.polymarket.market-ws-enabled=false).");
       return;
     }
-    List<String> tokenIds = properties.getPolymarket().getMarketAssetIds();
+    List<String> tokenIds = properties.polymarket().marketAssetIds();
     if (tokenIds == null || tokenIds.isEmpty()) {
       log.warn("midpoint-maker enabled, but no token IDs configured (hft.polymarket.market-asset-ids).");
       return;
     }
 
-    long periodMs = Math.max(50, cfg.getRefreshMillis());
+    long periodMs = Math.max(50, cfg.refreshMillis());
     executor.scheduleAtFixedRate(() -> tick(tokenIds, cfg), 0, periodMs, TimeUnit.MILLISECONDS);
     log.info("midpoint-maker started (tokens={}, refreshMillis={})", tokenIds.size(), periodMs);
   }
@@ -140,7 +131,7 @@ public class MidpointMakerEngine {
     int priceDecimals = Math.max(0, tickSize.stripTrailingZeros().scale());
 
     BigDecimal midpoint = tob.bestBid().add(tob.bestAsk()).divide(BigDecimal.valueOf(2), MIDPOINT_CTX);
-    BigDecimal halfSpread = cfg.getSpread().divide(BigDecimal.valueOf(2), MIDPOINT_CTX);
+    BigDecimal halfSpread = cfg.spread().divide(BigDecimal.valueOf(2), MIDPOINT_CTX);
 
     BigDecimal bidPrice = midpoint.subtract(halfSpread).setScale(priceDecimals, RoundingMode.DOWN);
     BigDecimal askPrice = midpoint.add(halfSpread).setScale(priceDecimals, RoundingMode.UP);
@@ -163,7 +154,7 @@ public class MidpointMakerEngine {
         tokenId,
         OrderSide.BUY,
         bidPrice,
-        cfg.getQuoteSize(),
+        cfg.quoteSize(),
         ClobOrderType.GTC,
         tickSize,
         negRisk,
@@ -178,7 +169,7 @@ public class MidpointMakerEngine {
         tokenId,
         OrderSide.SELL,
         askPrice,
-        cfg.getQuoteSize(),
+        cfg.quoteSize(),
         ClobOrderType.GTC,
         tickSize,
         negRisk,
@@ -208,4 +199,3 @@ public class MidpointMakerEngine {
   private record QuoteState(String buyOrderId, String sellOrderId) {
   }
 }
-
