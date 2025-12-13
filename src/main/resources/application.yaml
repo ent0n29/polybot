@@ -16,7 +16,7 @@ management:
         include: health,info,metrics
 
 hft:
-  mode: PAPER
+  mode: LIVE
   risk:
     kill-switch: false
     max-order-notional-usd: 0
@@ -52,4 +52,4 @@ hft:
       api-secret: ${POLYMARKET_API_SECRET:}
       api-passphrase: ${POLYMARKET_API_PASSPHRASE:}
       nonce: ${POLYMARKET_API_NONCE:0}
-      auto-create-or-derive-api-creds: false
+      auto-create-or-derive-api-creds: true

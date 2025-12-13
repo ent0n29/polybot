@@ -28,6 +28,15 @@ public class PolymarketAuthContext {
   private volatile Credentials signerCredentials;
   private volatile ApiCreds apiCreds;
 
+  public record DeriveAttempt(
+      boolean attempted,
+      boolean success,
+      String method,
+      long nonce,
+      String error
+  ) {
+  }
+
   @PostConstruct
   void initFromConfig() {
     HftProperties.Auth auth = properties.polymarket().auth();
@@ -52,9 +61,14 @@ public class PolymarketAuthContext {
         && this.apiCreds == null) {
       Credentials signer = requireSignerCredentials();
       long nonce = auth.nonce();
-      ApiCreds derived = clobClient.createOrDeriveApiCreds(signer, nonce);
-      this.apiCreds = derived;
-      log.info("Loaded Polymarket API key creds (key={})", derived.key());
+      DeriveAttempt attempt = tryCreateOrDeriveApiCreds(nonce);
+      if (attempt.success()) {
+        log.info("Loaded Polymarket API key creds (method={}, keySuffix=...{})",
+            attempt.method(),
+            safeSuffix(apiCreds == null ? null : apiCreds.key(), 6));
+      } else if (attempt.error() != null) {
+        log.warn("Failed to auto create/derive Polymarket API creds: {}", attempt.error());
+      }
     }
 
     String funder = auth.funderAddress();
@@ -87,9 +101,49 @@ public class PolymarketAuthContext {
     return creds;
   }
 
+  public synchronized DeriveAttempt tryCreateOrDeriveApiCreds(long nonce) {
+    if (this.apiCreds != null) {
+      return new DeriveAttempt(false, true, "already-present", nonce, null);
+    }
+    Credentials signer;
+    try {
+      signer = requireSignerCredentials();
+    } catch (Exception e) {
+      return new DeriveAttempt(true, false, null, nonce, e.toString());
+    }
+
+    try {
+      ApiCreds created = clobClient.createApiCreds(signer, nonce);
+      if (created != null && created.key() != null && !created.key().isBlank()) {
+        this.apiCreds = created;
+        return new DeriveAttempt(true, true, "create", nonce, null);
+      }
+    } catch (Exception ignored) {
+      // fall through to derive
+    }
+
+    try {
+      ApiCreds derived = clobClient.deriveApiCreds(signer, nonce);
+      if (derived != null && derived.key() != null && !derived.key().isBlank()) {
+        this.apiCreds = derived;
+        return new DeriveAttempt(true, true, "derive", nonce, null);
+      }
+      return new DeriveAttempt(true, false, "derive", nonce, "derive returned empty creds");
+    } catch (Exception e) {
+      return new DeriveAttempt(true, false, "derive", nonce, e.toString());
+    }
+  }
+
   private static String strip0x(String hex) {
     String trimmed = hex.trim();
     return trimmed.startsWith("0x") || trimmed.startsWith("0X") ? trimmed.substring(2) : trimmed;
+  }
+
+  private static String safeSuffix(String value, int len) {
+    if (value == null || value.isBlank() || len <= 0) {
+      return "";
+    }
+    return value.length() <= len ? value : value.substring(value.length() - len);
   }
 
   private static void requireHex32(String field, String value) {
