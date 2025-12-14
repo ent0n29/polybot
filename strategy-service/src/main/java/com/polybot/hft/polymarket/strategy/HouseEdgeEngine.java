@@ -8,6 +8,9 @@ import com.polybot.hft.polymarket.api.OrderSubmissionResult;
 import com.polybot.hft.polymarket.model.ClobOrderType;
 import com.polybot.hft.polymarket.ws.ClobMarketWebSocketClient;
 import com.polybot.hft.polymarket.ws.TopOfBook;
+import com.polybot.hft.events.HftEventPublisher;
+import com.polybot.hft.events.HftEventTypes;
+import com.polybot.hft.polymarket.strategy.events.HouseEdgeQuoteEvent;
 import com.polybot.hft.strategy.executor.ExecutorApiClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -37,10 +40,13 @@ public class HouseEdgeEngine {
   private static final long WAIT_LOG_THROTTLE_MILLIS = 30_000L;
   private static final long QUOTE_LOG_THROTTLE_MILLIS = 5_000L;
   private static final long ORDER_ERROR_LOG_THROTTLE_MILLIS = 10_000L;
+  private static final long ORDER_RETRY_INITIAL_BACKOFF_MILLIS = 2_000L;
+  private static final long ORDER_RETRY_MAX_BACKOFF_MILLIS = 60_000L;
 
   private final @NonNull HftProperties properties;
   private final @NonNull ClobMarketWebSocketClient marketWs;
   private final @NonNull ExecutorApiClient executorApi;
+  private final @NonNull HftEventPublisher events;
   private final @NonNull Clock clock;
 
   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -263,6 +269,7 @@ public class HouseEdgeEngine {
     }
 
     Instant now = Instant.now(clock);
+    long nowMillis = now.toEpochMilli();
     if (yesTob.lastTradePrice() != null && yesTob.lastTradeAt() != null) {
       tradeWindowsByTokenId.computeIfAbsent(yesTokenId, k -> new TradeWindow(cfg.tradeWindowSeconds(), cfg.tradeSamples())).add(yesTob.lastTradePrice(), yesTob.lastTradeAt(), now);
     }
@@ -318,30 +325,63 @@ public class HouseEdgeEngine {
 
     boolean didBuy = false;
     boolean didSell = false;
-    if (shouldReplaceBuy) {
+    boolean attemptedBuy = shouldReplaceBuy && nowMillis >= state.nextBuyAttemptAtMillis;
+    boolean attemptedSell = shouldReplaceSell && nowMillis >= state.nextSellAttemptAtMillis;
+    if (attemptedBuy) {
       safeCancel(state.buyOrderId);
       try {
         OrderSubmissionResult buy = placeLimit(tokenId, OrderSide.BUY, prices.buy, cfg.quoteSize(), meta);
         state.buyOrderId = resolveOrderId(buy);
         state.buyPrice = prices.buy;
+        state.buyBackoffMillis = 0L;
+        state.nextBuyAttemptAtMillis = 0L;
         didBuy = true;
       } catch (Exception e) {
+        state.buyBackoffMillis = nextBackoffMillis(state.buyBackoffMillis);
+        state.nextBuyAttemptAtMillis = nowMillis + state.buyBackoffMillis;
         maybeLogOrderError(marketKey, market, "BUY", e);
       }
     }
-    if (shouldReplaceSell) {
+    if (attemptedSell) {
       safeCancel(state.sellOrderId);
       try {
         OrderSubmissionResult sell = placeLimit(tokenId, OrderSide.SELL, prices.sell, cfg.quoteSize(), meta);
         state.sellOrderId = resolveOrderId(sell);
         state.sellPrice = prices.sell;
+        state.sellBackoffMillis = 0L;
+        state.nextSellAttemptAtMillis = 0L;
         didSell = true;
       } catch (Exception e) {
+        state.sellBackoffMillis = nextBackoffMillis(state.sellBackoffMillis);
+        state.nextSellAttemptAtMillis = nowMillis + state.sellBackoffMillis;
         maybeLogOrderError(marketKey, market, "SELL", e);
       }
     }
 
     maybeLogQuoteUpdate(state, market, bias, tokenId, tob, currentYes, fair, prices, didBuy, didSell);
+    if (events.isEnabled()) {
+      events.publish(now, HftEventTypes.STRATEGY_HOUSE_EDGE_QUOTE, marketKey, new HouseEdgeQuoteEvent(
+          marketKey,
+          marketLabel(market),
+          bias.name(),
+          yesTokenId,
+          noTokenId,
+          tokenId,
+          tob.bestBid(),
+          tob.bestAsk(),
+          currentYes,
+          fair,
+          prices.buy,
+          prices.sell,
+          cfg.quoteSize(),
+          attemptedBuy,
+          didBuy,
+          attemptedSell,
+          didSell,
+          state.buyOrderId,
+          state.sellOrderId
+      ));
+    }
   }
 
   private OrderSubmissionResult placeLimit(String tokenId, OrderSide side, BigDecimal price, BigDecimal size, MarketMeta meta) {
@@ -439,6 +479,17 @@ public class HouseEdgeEngine {
     return activeMarkets.get().size();
   }
 
+  private static long nextBackoffMillis(long currentBackoffMillis) {
+    if (currentBackoffMillis <= 0L) {
+      return ORDER_RETRY_INITIAL_BACKOFF_MILLIS;
+    }
+    long next = currentBackoffMillis * 2L;
+    if (next <= 0L) {
+      return ORDER_RETRY_MAX_BACKOFF_MILLIS;
+    }
+    return Math.min(ORDER_RETRY_MAX_BACKOFF_MILLIS, next);
+  }
+
   private enum Bias {
     ACCUMULATE_YES, ACCUMULATE_NO,
   }
@@ -449,6 +500,10 @@ public class HouseEdgeEngine {
     private volatile BigDecimal buyPrice;
     private volatile String sellOrderId;
     private volatile BigDecimal sellPrice;
+    private volatile long nextBuyAttemptAtMillis;
+    private volatile long nextSellAttemptAtMillis;
+    private volatile long buyBackoffMillis;
+    private volatile long sellBackoffMillis;
     private volatile long lastQuoteLogAtMillis = 0L;
 
     private MarketState(Bias bias) {

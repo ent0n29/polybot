@@ -1,8 +1,11 @@
 package com.polybot.hft.polymarket.strategy;
 
 import com.polybot.hft.config.HftProperties;
+import com.polybot.hft.events.HftEventPublisher;
+import com.polybot.hft.events.HftEventTypes;
 import com.polybot.hft.polymarket.discovery.DiscoveredMarket;
 import com.polybot.hft.polymarket.discovery.PolymarketMarketDiscoveryService;
+import com.polybot.hft.polymarket.strategy.events.HouseEdgeDiscoverySelectedEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.NonNull;
@@ -29,6 +32,7 @@ public class HouseEdgeMarketDiscoveryRunner {
   private final @NonNull HftProperties properties;
   private final @NonNull PolymarketMarketDiscoveryService discoveryService;
   private final @NonNull HouseEdgeEngine engine;
+  private final @NonNull HftEventPublisher events;
 
   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
     Thread t = new Thread(r, "house-edge-discovery");
@@ -228,13 +232,9 @@ public class HouseEdgeMarketDiscoveryRunner {
     }
 
     int max = Math.max(1, discovery.maxMarkets());
-    List<HftProperties.HouseEdgeMarket> next = filtered.stream()
-        .limit(max)
-        .map(m -> new HftProperties.HouseEdgeMarket(
-            safeName(m.question()),
-            m.yesTokenId(),
-            m.noTokenId()
-        ))
+    List<DiscoveredMarket> selected = filtered.stream().limit(max).toList();
+    List<HftProperties.HouseEdgeMarket> next = selected.stream()
+        .map(m -> new HftProperties.HouseEdgeMarket(safeName(m.question()), m.yesTokenId(), m.noTokenId()))
         .toList();
 
     Set<String> nextKeys = new HashSet<>();
@@ -254,6 +254,29 @@ public class HouseEdgeMarketDiscoveryRunner {
         .toList();
     log.info("house-edge discovered markets selected={} markets={}", next.size(), labels);
     lastSelectedMarkets.set(next.size());
+    if (events.isEnabled()) {
+      List<HouseEdgeDiscoverySelectedEvent.SelectedMarket> markets = selected.stream()
+          .map(m -> new HouseEdgeDiscoverySelectedEvent.SelectedMarket(
+              safeName(m.question()),
+              m.yesTokenId(),
+              m.noTokenId(),
+              m.endEpochMillis(),
+              m.volume(),
+              m.source()
+          ))
+          .toList();
+      events.publish(HftEventTypes.STRATEGY_HOUSE_EDGE_DISCOVERY_SELECTED, "house-edge", new HouseEdgeDiscoverySelectedEvent(
+          List.copyOf(discovery.queries()),
+          require15m,
+          minVolume,
+          max,
+          next.size(),
+          gammaCandidateCount,
+          gammaAfterAssetFilterCount,
+          clobCandidateCount,
+          markets
+      ));
+    }
     engine.setMarkets(next);
   }
 

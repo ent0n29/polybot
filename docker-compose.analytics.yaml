@@ -1,0 +1,42 @@
+name: polybot
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.2.11
+    container_name: polybot-redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - INTERNAL://redpanda:29092,EXTERNAL://localhost:9092
+    ports:
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9644:9644"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: polybot-clickhouse
+    depends_on:
+      - redpanda
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - ./analytics-service/clickhouse/init:/docker-entrypoint-initdb.d:ro
+      - ./analytics-service/clickhouse/users.d/default-user.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
+      - polybot_chdata:/var/lib/clickhouse
+
+volumes:
+  polybot_chdata:

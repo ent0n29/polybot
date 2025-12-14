@@ -1,5 +1,7 @@
 hft:
   mode: LIVE
+  events:
+    enabled: true
   executor:
     base-url: ${POLYBOT_EXECUTOR_BASE_URL:http://localhost:8080}
   polymarket:

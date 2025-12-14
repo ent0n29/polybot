@@ -1,6 +1,7 @@
 hft:
   mode: LIVE
+  events:
+    enabled: true
   polymarket:
     auth:
       auto-create-or-derive-api-creds: true
-

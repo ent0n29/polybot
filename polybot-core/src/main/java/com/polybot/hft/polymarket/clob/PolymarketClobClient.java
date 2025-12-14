@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class PolymarketClobClient {
 
   private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
+  private static final String DEFAULT_USER_AGENT = "polybot/1.0";
 
   private final HttpRequestFactory requestFactory;
   private final PolymarketHttpTransport transport;
@@ -207,7 +208,9 @@ public final class PolymarketClobClient {
   private <T> T getJson(String path, Map<String, String> query, Map<String, String> headers, Class<T> type) {
     HttpRequest.Builder builder = requestFactory.request(path, query)
         .GET()
-        .timeout(HTTP_TIMEOUT);
+        .timeout(HTTP_TIMEOUT)
+        .header("Accept", "application/json")
+        .header("User-Agent", DEFAULT_USER_AGENT);
     HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendJson(request, type);
@@ -221,7 +224,9 @@ public final class PolymarketClobClient {
     HttpRequest.Builder builder = requestFactory.request(path, query)
         .POST(HttpRequest.BodyPublishers.ofString(body == null ? "" : body))
         .timeout(HTTP_TIMEOUT)
-        .header("Content-Type", "application/json");
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .header("User-Agent", DEFAULT_USER_AGENT);
     HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendJson(request, type);
@@ -231,7 +236,9 @@ public final class PolymarketClobClient {
     HttpRequest.Builder builder = requestFactory.request(path, Map.of())
         .method("DELETE", HttpRequest.BodyPublishers.ofString(body == null ? "" : body))
         .timeout(HTTP_TIMEOUT)
-        .header("Content-Type", "application/json");
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .header("User-Agent", DEFAULT_USER_AGENT);
     HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendJson(request, JsonNode.class);
@@ -240,7 +247,8 @@ public final class PolymarketClobClient {
   private String getString(String path, Map<String, String> query, Map<String, String> headers) {
     HttpRequest.Builder builder = requestFactory.request(path, query)
         .GET()
-        .timeout(HTTP_TIMEOUT);
+        .timeout(HTTP_TIMEOUT)
+        .header("User-Agent", DEFAULT_USER_AGENT);
     HttpHeadersUtil.apply(builder, headers);
     HttpRequest request = builder.build();
     return sendString(request);

@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: analytics-service
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.clickhouse: WARN

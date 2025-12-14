@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: ${ANALYTICS_DB_URL:jdbc:clickhouse://localhost:8123/polybot}
+    driver-class-name: ${ANALYTICS_DB_DRIVER:com.clickhouse.jdbc.ClickHouseDriver}
+    username: ${ANALYTICS_DB_USERNAME:default}
+    password: ${ANALYTICS_DB_PASSWORD:}

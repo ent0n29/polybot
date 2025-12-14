@@ -16,6 +16,7 @@ target/
 *.ear
 hs_err_pid*
 .mvn/repository/
+.m2/
 
 # Local config / secrets
 .env

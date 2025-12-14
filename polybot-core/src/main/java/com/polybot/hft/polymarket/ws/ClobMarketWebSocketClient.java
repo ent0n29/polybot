@@ -3,6 +3,10 @@ package com.polybot.hft.polymarket.ws;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.polybot.hft.config.HftProperties;
+import com.polybot.hft.events.HftEventPublisher;
+import com.polybot.hft.events.HftEventTypes;
+import com.polybot.hft.events.HftEventsProperties;
+import com.polybot.hft.events.payload.MarketTopOfBookEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -37,9 +41,12 @@ public class ClobMarketWebSocketClient {
   private final @NonNull HttpClient httpClient;
   private final @NonNull ObjectMapper objectMapper;
   private final @NonNull Clock clock;
+  private final @NonNull HftEventsProperties eventsProperties;
+  private final @NonNull HftEventPublisher events;
 
   private final Map<String, TopOfBook> topOfBookByAssetId = new ConcurrentHashMap<>();
   private final Set<String> subscribedAssetIds = ConcurrentHashMap.newKeySet();
+  private final Map<String, AtomicLong> lastTobEventAtMillisByAssetId = new ConcurrentHashMap<>();
 
   private final AtomicLong messagesReceived = new AtomicLong(0);
   private final AtomicLong bookMessages = new AtomicLong(0);
@@ -287,7 +294,7 @@ public class ClobMarketWebSocketClient {
     BigDecimal lastTradePrice = parseDecimal(node.path("last_trade_price").asText(null));
 
     Instant now = Instant.now(clock);
-    topOfBookByAssetId.compute(assetId, (k, prev) -> {
+    TopOfBook tob = topOfBookByAssetId.compute(assetId, (k, prev) -> {
       BigDecimal prevLast = prev == null ? null : prev.lastTradePrice();
       Instant prevTradeAt = prev == null ? null : prev.lastTradeAt();
 
@@ -298,6 +305,7 @@ public class ClobMarketWebSocketClient {
       }
       return new TopOfBook(bestBid, bestAsk, nextLast, now, nextTradeAt);
     });
+    maybePublishTopOfBook(assetId, tob);
   }
 
   private void handlePriceChange(JsonNode node) {
@@ -313,7 +321,8 @@ public class ClobMarketWebSocketClient {
       }
       BigDecimal bestBid = parseDecimal(change.path("best_bid").asText(null));
       BigDecimal bestAsk = parseDecimal(change.path("best_ask").asText(null));
-      topOfBookByAssetId.compute(assetId, (k, prev) -> new TopOfBook(bestBid != null ? bestBid : (prev == null ? null : prev.bestBid()), bestAsk != null ? bestAsk : (prev == null ? null : prev.bestAsk()), prev == null ? null : prev.lastTradePrice(), now, prev == null ? null : prev.lastTradeAt()));
+      TopOfBook tob = topOfBookByAssetId.compute(assetId, (k, prev) -> new TopOfBook(bestBid != null ? bestBid : (prev == null ? null : prev.bestBid()), bestAsk != null ? bestAsk : (prev == null ? null : prev.bestAsk()), prev == null ? null : prev.lastTradePrice(), now, prev == null ? null : prev.lastTradeAt()));
+      maybePublishTopOfBook(assetId, tob);
     }
   }
 
@@ -324,7 +333,41 @@ public class ClobMarketWebSocketClient {
     }
     BigDecimal price = parseDecimal(node.path("price").asText(null));
     Instant now = Instant.now(clock);
-    topOfBookByAssetId.compute(assetId, (k, prev) -> new TopOfBook(prev == null ? null : prev.bestBid(), prev == null ? null : prev.bestAsk(), price, now, now));
+    TopOfBook tob = topOfBookByAssetId.compute(assetId, (k, prev) -> new TopOfBook(prev == null ? null : prev.bestBid(), prev == null ? null : prev.bestAsk(), price, now, now));
+    maybePublishTopOfBook(assetId, tob);
+  }
+
+  private void maybePublishTopOfBook(String assetId, TopOfBook tob) {
+    if (assetId == null || assetId.isBlank() || tob == null) {
+      return;
+    }
+    if (!events.isEnabled()) {
+      return;
+    }
+
+    long minIntervalMillis = eventsProperties.marketWsTobMinIntervalMillis();
+    long nowMillis = tob.updatedAt() != null ? tob.updatedAt().toEpochMilli() : System.currentTimeMillis();
+    if (minIntervalMillis > 0) {
+      AtomicLong last = lastTobEventAtMillisByAssetId.computeIfAbsent(assetId, k -> new AtomicLong(0L));
+      while (true) {
+        long prev = last.get();
+        if (nowMillis - prev < minIntervalMillis) {
+          return;
+        }
+        if (last.compareAndSet(prev, nowMillis)) {
+          break;
+        }
+      }
+    }
+
+    events.publish(tob.updatedAt(), HftEventTypes.MARKET_WS_TOB, assetId, new MarketTopOfBookEvent(
+        assetId,
+        tob.bestBid(),
+        tob.bestAsk(),
+        tob.lastTradePrice(),
+        tob.updatedAt(),
+        tob.lastTradeAt()
+    ));
   }
 
   private final class Listener implements WebSocket.Listener {
