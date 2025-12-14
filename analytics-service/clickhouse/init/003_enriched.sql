@@ -70,6 +70,21 @@ GROUP BY trade_key;
 
 CREATE OR REPLACE VIEW polybot.user_trade_enriched AS
 WITH
+  -- Gamma market metadata can be missing for many markets (depending on what ingestors publish).
+  -- When missing, ClickHouse JOIN defaults non-nullable DateTime64 columns to epoch (1970-01-01),
+  -- which then produces huge negative seconds_to_end. Treat “epoch-ish” values as NULL and fall
+  -- back to parsing end time for known series (e.g., updown-15m slugs).
+  toDateTime64('2000-01-01 00:00:00', 3) AS min_valid_dt,
+  if(g.end_date < min_valid_dt, CAST(NULL, 'Nullable(DateTime64(3))'), toNullable(g.end_date)) AS gamma_end_date,
+  if(g.event_start_time < min_valid_dt, CAST(NULL, 'Nullable(DateTime64(3))'), toNullable(g.event_start_time)) AS gamma_event_start_time,
+  toUInt32OrZero(arrayElement(splitByChar('-', u.market_slug), -1)) AS slug_epoch_start,
+  if(
+    position(u.market_slug, 'updown-15m-') > 0 AND slug_epoch_start > 0,
+    toDateTime64(slug_epoch_start + 900, 3),
+    CAST(NULL, 'Nullable(DateTime64(3))')
+  ) AS slug_end_date,
+  coalesce(gamma_end_date, slug_end_date) AS end_date,
+  if(end_date IS NULL, CAST(NULL, 'Nullable(Int64)'), dateDiff('second', u.ts, end_date)) AS seconds_to_end,
   arrayMax(g.outcome_prices) AS max_outcome_price,
   arrayMin(g.outcome_prices) AS min_outcome_price,
   (max_outcome_price >= 0.999 AND min_outcome_price <= 0.001) AS is_resolved,
@@ -99,9 +114,9 @@ SELECT
   t.spread,
   (u.price - t.mid) AS price_minus_mid,
   g.market_id,
-  g.end_date,
-  g.event_start_time,
-  dateDiff('second', u.ts, g.end_date) AS seconds_to_end,
+  end_date,
+  gamma_event_start_time AS event_start_time,
+  seconds_to_end,
   g.active,
   g.closed,
   g.uma_resolution_status,

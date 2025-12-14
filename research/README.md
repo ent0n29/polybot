@@ -36,6 +36,12 @@ uv run jupyter lab
 
 Open `research/notebooks/01_extract_snapshot.ipynb`.
 
+Then:
+
+- `research/notebooks/02_feature_layer_and_regimes.ipynb`
+- `research/notebooks/03_model_and_tests.ipynb`
+- `research/notebooks/04_backtest_and_montecarlo.ipynb`
+
 ## Connection defaults
 
 The notebook/script defaults to:

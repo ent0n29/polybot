@@ -21,6 +21,10 @@ hs_err_pid*
 # Local config / secrets
 .env
 
+# Python
+__pycache__/
+*.pyc
+
 # Research / notebooks
 research/data/
 research/.ipynb_checkpoints/
