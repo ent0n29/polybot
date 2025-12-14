@@ -126,8 +126,8 @@ public class PolymarketMarketContextIngestor {
       }
 
       GammaMarket gamma = state.gamma;
-      if (gamma != null) {
-        if (Boolean.TRUE.equals(gamma.resolved()) || gamma.resolution() != null) {
+        if (gamma != null) {
+        if (isTerminalGammaMarket(gamma)) {
           continue;
         }
         if (maxIdleMillis > 0 && nowMillis - state.lastSeenAtMillis > maxIdleMillis) {
@@ -372,8 +372,10 @@ public class PolymarketMarketContextIngestor {
     String resolution = textOrNull(market.path("resolution"));
     Boolean resolved = boolOrNull(market.path("resolved"));
     Boolean closed = boolOrNull(market.path("closed"));
+    String umaResolutionStatus = textOrNull(market.path("umaResolutionStatus"));
 
     List<String> outcomes = parseJsonStringArray(market.path("outcomes"));
+    List<String> outcomePrices = parseJsonStringArray(market.path("outcomePrices"));
     List<String> tokenIds = parseJsonStringArray(market.path("clobTokenIds"));
 
     return new GammaMarket(
@@ -387,9 +389,11 @@ public class PolymarketMarketContextIngestor {
         closed,
         resolved,
         resolution,
+        umaResolutionStatus,
         updatedAt,
         tokenIds,
         outcomes,
+        outcomePrices,
         event,
         market
     );
@@ -400,11 +404,81 @@ public class PolymarketMarketContextIngestor {
     String conditionId = market.conditionId() == null ? "" : market.conditionId();
     String resolution = market.resolution() == null ? "" : market.resolution();
     String resolved = market.resolved() == null ? "" : String.valueOf(market.resolved());
+    String umaResolutionStatus = market.umaResolutionStatus() == null ? "" : market.umaResolutionStatus();
+    String resolvedOutcome = resolvedOutcomeFromPrices(market.outcomes(), market.outcomePrices());
+    if (resolvedOutcome == null) {
+      resolvedOutcome = "";
+    }
     String closed = market.closed() == null ? "" : String.valueOf(market.closed());
     String end = market.endDate() == null ? "" : market.endDate().toString();
     String tokenIds = String.join(",", market.clobTokenIds());
     String outcomes = String.join(",", market.outcomes());
-    return "%s|%s|%s|%s|%s|%s|%s".formatted(marketId, conditionId, resolved, resolution, closed, end, tokenIds + "::" + outcomes);
+    return "%s|%s|%s|%s|%s|%s|%s|%s|%s".formatted(
+        marketId,
+        conditionId,
+        resolved,
+        resolution,
+        resolvedOutcome,
+        umaResolutionStatus,
+        closed,
+        end,
+        tokenIds + "::" + outcomes
+    );
+  }
+
+  private static boolean isTerminalGammaMarket(GammaMarket market) {
+    if (market == null) {
+      return false;
+    }
+    if (Boolean.TRUE.equals(market.resolved())) {
+      return true;
+    }
+    if (market.resolution() != null && !market.resolution().isBlank()) {
+      return true;
+    }
+    return resolvedOutcomeFromPrices(market.outcomes(), market.outcomePrices()) != null;
+  }
+
+  private static String resolvedOutcomeFromPrices(List<String> outcomes, List<String> outcomePrices) {
+    if (outcomes == null || outcomePrices == null) {
+      return null;
+    }
+    if (outcomes.isEmpty() || outcomePrices.isEmpty() || outcomes.size() != outcomePrices.size()) {
+      return null;
+    }
+
+    BigDecimal max = null;
+    BigDecimal min = null;
+    int maxIdx = -1;
+    for (int i = 0; i < outcomePrices.size(); i++) {
+      String raw = outcomePrices.get(i);
+      if (raw == null || raw.isBlank()) {
+        return null;
+      }
+      BigDecimal p;
+      try {
+        p = new BigDecimal(raw.trim());
+      } catch (Exception e) {
+        return null;
+      }
+      if (max == null || p.compareTo(max) > 0) {
+        max = p;
+        maxIdx = i;
+      }
+      if (min == null || p.compareTo(min) < 0) {
+        min = p;
+      }
+    }
+    if (max == null || min == null || maxIdx < 0) {
+      return null;
+    }
+    if (max.compareTo(new BigDecimal("0.999")) < 0) {
+      return null;
+    }
+    if (min.compareTo(new BigDecimal("0.001")) > 0) {
+      return null;
+    }
+    return outcomes.get(maxIdx);
   }
 
   private static Map<String, Object> topOfBook(JsonNode book) {
@@ -416,8 +490,8 @@ public class PolymarketMarketContextIngestor {
     if (!asks.isArray()) {
       asks = book.path("sells");
     }
-    JsonNode bestBid = bids.isArray() && bids.size() > 0 ? bids.get(0) : null;
-    JsonNode bestAsk = asks.isArray() && asks.size() > 0 ? asks.get(0) : null;
+    JsonNode bestBid = bestBidLevel(bids);
+    JsonNode bestAsk = bestAskLevel(asks);
 
     BigDecimal bid = priceOrNull(bestBid);
     BigDecimal ask = priceOrNull(bestAsk);
@@ -433,6 +507,44 @@ public class PolymarketMarketContextIngestor {
     out.put("mid", mid == null ? null : mid.toPlainString());
     out.put("spread", spread == null ? null : spread.toPlainString());
     return out;
+  }
+
+  private static JsonNode bestBidLevel(JsonNode bids) {
+    if (bids == null || !bids.isArray() || bids.isEmpty()) {
+      return null;
+    }
+    JsonNode best = null;
+    BigDecimal bestPrice = null;
+    for (JsonNode level : bids) {
+      BigDecimal p = priceOrNull(level);
+      if (p == null) {
+        continue;
+      }
+      if (bestPrice == null || p.compareTo(bestPrice) > 0) {
+        bestPrice = p;
+        best = level;
+      }
+    }
+    return best;
+  }
+
+  private static JsonNode bestAskLevel(JsonNode asks) {
+    if (asks == null || !asks.isArray() || asks.isEmpty()) {
+      return null;
+    }
+    JsonNode best = null;
+    BigDecimal bestPrice = null;
+    for (JsonNode level : asks) {
+      BigDecimal p = priceOrNull(level);
+      if (p == null) {
+        continue;
+      }
+      if (bestPrice == null || p.compareTo(bestPrice) < 0) {
+        bestPrice = p;
+        best = level;
+      }
+    }
+    return best;
   }
 
   private static BigDecimal priceOrNull(JsonNode level) {
@@ -624,9 +736,11 @@ public class PolymarketMarketContextIngestor {
       Boolean closed,
       Boolean resolved,
       String resolution,
+      String umaResolutionStatus,
       String updatedAt,
       List<String> clobTokenIds,
       List<String> outcomes,
+      List<String> outcomePrices,
       JsonNode rawEvent,
       JsonNode rawMarket
   ) {
