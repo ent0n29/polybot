@@ -14,7 +14,8 @@ import java.net.URI;
 @ConfigurationProperties(prefix = "ingestor")
 public record IngestorProperties(
     @Valid Polymarket polymarket,
-    @Valid Polling polling
+    @Valid Polling polling,
+    @Valid MarketContext marketContext
 ) {
 
   public IngestorProperties {
@@ -23,6 +24,9 @@ public record IngestorProperties(
     }
     if (polling == null) {
       polling = new Polling(null, null, null, null, null, null);
+    }
+    if (marketContext == null) {
+      marketContext = new MarketContext(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
   }
 
@@ -81,5 +85,62 @@ public record IngestorProperties(
       }
     }
   }
-}
 
+  public record MarketContext(
+      @NotNull Boolean enabled,
+      URI gammaApiBaseUrl,
+      URI clobRestBaseUrl,
+      @NotNull @Min(1) Integer marketTradesLimit,
+      @NotNull @Min(1) Integer marketTradesMinIntervalSeconds,
+      @NotNull @Min(1) Integer clobBookMinIntervalSeconds,
+      @NotNull @Min(1) Integer gammaMinIntervalSeconds,
+      @NotNull @Min(1) Integer gammaPollIntervalSeconds,
+      @NotNull @Min(1) Integer gammaPollLookaheadSeconds,
+      @NotNull @Min(1) Integer gammaPollMaxIdleSeconds,
+      @NotNull @PositiveOrZero Long requestDelayMillis,
+      @NotNull @Min(1) Integer maxTrackedMarkets,
+      @NotNull @PositiveOrZero Integer onTradeContextMaxAgeSeconds
+  ) {
+    public MarketContext {
+      if (enabled == null) {
+        enabled = true;
+      }
+      if (gammaApiBaseUrl == null) {
+        gammaApiBaseUrl = URI.create("https://gamma-api.polymarket.com");
+      }
+      if (clobRestBaseUrl == null) {
+        clobRestBaseUrl = URI.create("https://clob.polymarket.com");
+      }
+      if (marketTradesLimit == null) {
+        marketTradesLimit = 50;
+      }
+      if (marketTradesMinIntervalSeconds == null) {
+        marketTradesMinIntervalSeconds = 10;
+      }
+      if (clobBookMinIntervalSeconds == null) {
+        clobBookMinIntervalSeconds = 1;
+      }
+      if (gammaMinIntervalSeconds == null) {
+        gammaMinIntervalSeconds = 60;
+      }
+      if (gammaPollIntervalSeconds == null) {
+        gammaPollIntervalSeconds = 60;
+      }
+      if (gammaPollLookaheadSeconds == null) {
+        gammaPollLookaheadSeconds = 3600;
+      }
+      if (gammaPollMaxIdleSeconds == null) {
+        gammaPollMaxIdleSeconds = 6 * 3600;
+      }
+      if (requestDelayMillis == null) {
+        requestDelayMillis = 100L;
+      }
+      if (maxTrackedMarkets == null) {
+        maxTrackedMarkets = 500;
+      }
+      if (onTradeContextMaxAgeSeconds == null) {
+        onTradeContextMaxAgeSeconds = 300;
+      }
+    }
+  }
+}

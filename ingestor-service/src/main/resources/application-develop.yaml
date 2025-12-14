@@ -7,5 +7,17 @@ ingestor:
     username: gabagool22
   polling:
     enabled: true
-    backfill-on-start: true
+    backfill-on-start: false
     page-size: 500
+  market-context:
+    enabled: true
+    market-trades-limit: 50
+    market-trades-min-interval-seconds: 10
+    clob-book-min-interval-seconds: 1
+    gamma-min-interval-seconds: 60
+    gamma-poll-interval-seconds: 60
+    gamma-poll-lookahead-seconds: 3600
+    gamma-poll-max-idle-seconds: 21600
+    request-delay-millis: 100
+    max-tracked-markets: 500
+    on-trade-context-max-age-seconds: 300

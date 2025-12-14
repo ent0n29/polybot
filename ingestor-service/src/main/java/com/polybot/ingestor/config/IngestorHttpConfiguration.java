@@ -62,4 +62,44 @@ public class IngestorHttpConfiguration {
         .defaultHeader(HttpHeaders.ACCEPT, "text/html")
         .build();
   }
+
+  @Bean
+  public RestClient polymarketGammaApiRestClient(
+      IngestorProperties properties,
+      RestClient.Builder builder
+  ) {
+    HttpClient httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
+
+    JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+    requestFactory.setReadTimeout(Duration.ofSeconds(10));
+
+    return builder
+        .baseUrl(properties.marketContext().gammaApiBaseUrl().toString())
+        .requestFactory(requestFactory)
+        .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+        .build();
+  }
+
+  @Bean
+  public RestClient polymarketClobRestClient(
+      IngestorProperties properties,
+      RestClient.Builder builder
+  ) {
+    HttpClient httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
+
+    JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+    requestFactory.setReadTimeout(Duration.ofSeconds(10));
+
+    return builder
+        .baseUrl(properties.marketContext().clobRestBaseUrl().toString())
+        .requestFactory(requestFactory)
+        .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+        .build();
+  }
 }

@@ -26,6 +26,33 @@ public class PolymarketDataApiClient {
     return getArray("/positions", userAddress, limit, offset);
   }
 
+  public ArrayNode getMarketTrades(String marketSlug, int limit, int offset) {
+    String body = polymarketDataApiRestClient.get()
+        .uri(uriBuilder -> uriBuilder
+            .path("/trades")
+            .queryParam("market", marketSlug)
+            .queryParam("limit", limit)
+            .queryParam("offset", offset)
+            .build())
+        .retrieve()
+        .body(String.class);
+
+    if (body == null || body.isBlank()) {
+      return objectMapper.createArrayNode();
+    }
+
+    try {
+      JsonNode parsed = objectMapper.readTree(body);
+      if (parsed instanceof ArrayNode arr) {
+        return arr;
+      }
+      log.warn("Unexpected data-api response type path=/trades market={} limit={} offset={} jsonType={}", marketSlug, limit, offset, parsed.getNodeType());
+      return objectMapper.createArrayNode();
+    } catch (Exception e) {
+      throw new RuntimeException("Failed parsing data-api response path=/trades market=%s limit=%d offset=%d".formatted(marketSlug, limit, offset), e);
+    }
+  }
+
   private ArrayNode getArray(String path, String userAddress, int limit, int offset) {
     String body = polymarketDataApiRestClient.get()
         .uri(uriBuilder -> uriBuilder

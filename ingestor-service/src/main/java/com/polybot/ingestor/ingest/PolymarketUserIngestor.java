@@ -35,6 +35,7 @@ public class PolymarketUserIngestor {
   private final @NonNull IngestorProperties properties;
   private final @NonNull PolymarketProfileResolver profileResolver;
   private final @NonNull PolymarketDataApiClient dataApi;
+  private final @NonNull PolymarketMarketContextIngestor marketContext;
   private final @NonNull HftEventPublisher events;
   private final @NonNull Clock clock;
 
@@ -307,6 +308,8 @@ public class PolymarketUserIngestor {
       events.publish(ts, "polymarket.user.trade", eventKey, data);
       publishedTrades.incrementAndGet();
       published++;
+
+      marketContext.onUserTrade(t.username, t.proxyAddress, eventKey, ts, trade);
     }
     return published;
   }

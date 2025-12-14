@@ -2,6 +2,7 @@ package com.polybot.ingestor.web;
 
 import com.polybot.hft.events.HftEventsProperties;
 import com.polybot.ingestor.config.IngestorProperties;
+import com.polybot.ingestor.ingest.PolymarketMarketContextIngestor;
 import com.polybot.ingestor.ingest.PolymarketUserIngestor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.env.Environment;
@@ -18,6 +19,7 @@ public class IngestorController {
   private final IngestorProperties ingestorProperties;
   private final HftEventsProperties hftEventsProperties;
   private final PolymarketUserIngestor ingestor;
+  private final PolymarketMarketContextIngestor marketContext;
 
   @GetMapping("/status")
   public Status status() {
@@ -33,6 +35,9 @@ public class IngestorController {
         ingestorProperties.polling().requestDelayMillis(),
         ingestorProperties.polling().backfillOnStart(),
         ingestorProperties.polling().backfillMaxPages(),
+        ingestorProperties.marketContext().enabled(),
+        ingestorProperties.marketContext().gammaApiBaseUrl().toString(),
+        ingestorProperties.marketContext().clobRestBaseUrl().toString(),
         hftEventsProperties.enabled(),
         hftEventsProperties.topic(),
         ingestor.polls(),
@@ -41,7 +46,14 @@ public class IngestorController {
         ingestor.failures(),
         ingestor.lastPollAtMillis(),
         ingestor.lastPositionsSnapshotAtMillis(),
-        ingestor.target()
+        ingestor.target(),
+        marketContext.trackedMarkets(),
+        marketContext.publishedGammaSnapshots(),
+        marketContext.publishedClobTobs(),
+        marketContext.publishedMarketTrades(),
+        marketContext.gammaPolls(),
+        marketContext.lastGammaPollAtMillis(),
+        marketContext.failures()
     );
   }
 
@@ -57,6 +69,9 @@ public class IngestorController {
       long requestDelayMillis,
       boolean backfillOnStart,
       Integer backfillMaxPages,
+      boolean marketContextEnabled,
+      String gammaApiBaseUrl,
+      String clobRestBaseUrl,
       boolean kafkaEventsEnabled,
       String kafkaTopic,
       long polls,
@@ -65,8 +80,14 @@ public class IngestorController {
       long failures,
       long lastPollAtMillis,
       long lastPositionsSnapshotAtMillis,
-      PolymarketUserIngestor.TargetStatus target
+      PolymarketUserIngestor.TargetStatus target,
+      int marketContextTrackedMarkets,
+      long marketContextPublishedGammaSnapshots,
+      long marketContextPublishedClobTobs,
+      long marketContextPublishedMarketTrades,
+      long marketContextGammaPolls,
+      long marketContextLastGammaPollAtMillis,
+      long marketContextFailures
   ) {
   }
 }
-

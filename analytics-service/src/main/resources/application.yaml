@@ -17,3 +17,5 @@ management:
 logging:
   level:
     com.clickhouse: WARN
+    com.clickhouse.client.http: WARN
+    com.clickhouse.jdbc: WARN
