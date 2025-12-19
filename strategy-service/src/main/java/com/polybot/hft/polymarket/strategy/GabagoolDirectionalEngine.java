@@ -108,6 +108,10 @@ public class GabagoolDirectionalEngine {
         log.info("gabagool directional-bias config (enabled={}, factor={})",
                 cfg.directionalBiasEnabled(),
                 cfg.directionalBiasFactor());
+        log.info("gabagool taker-mode config (enabled={}, maxEdge={}, maxSpread={})",
+                cfg.takerModeEnabled(),
+                cfg.takerModeMaxEdge(),
+                cfg.takerModeMaxSpread());
 
         if (!cfg.enabled()) {
             log.info("gabagool-directional strategy is disabled");
@@ -302,11 +306,13 @@ public class GabagoolDirectionalEngine {
 
         BigDecimal completeSetCost = bidUp.add(bidDown);
         BigDecimal completeSetEdge = BigDecimal.ONE.subtract(completeSetCost);
-        double minEdge = cfg.completeSetMinEdge();
+        BigDecimal minEdgeBD = BigDecimal.valueOf(cfg.completeSetMinEdge());
 
-        if (completeSetEdge.doubleValue() < minEdge) {
-            log.debug("GABAGOOL: Skipping {} - complete-set edge {:.4f} < min {:.4f} (bid_up={}, bid_down={})",
-                    market.slug(), completeSetEdge.doubleValue(), minEdge, bidUp, bidDown);
+        // Use BigDecimal comparison to avoid floating-point precision issues
+        // (e.g., 0.009999999999999953 should be treated as >= 0.01)
+        if (completeSetEdge.compareTo(minEdgeBD) < 0) {
+            log.debug("GABAGOOL: Skipping {} - complete-set edge {} < min {} (bid_up={}, bid_down={})",
+                    market.slug(), completeSetEdge, minEdgeBD, bidUp, bidDown);
             cancelMarketOrders(market, CancelReason.INSUFFICIENT_EDGE, secondsToEnd);
             return;
         }
@@ -396,9 +402,141 @@ public class GabagoolDirectionalEngine {
             }
         }
 
-        // ========== QUOTE BOTH LEGS (with skew and directional bias) ==========
-        maybeQuoteTokenWithSkew(market, market.upTokenId(), Direction.UP, upBook, downBook, cfg, secondsToEnd, skewTicksUp, upSizeFactor);
-        maybeQuoteTokenWithSkew(market, market.downTokenId(), Direction.DOWN, downBook, upBook, cfg, secondsToEnd, skewTicksDown, downSizeFactor);
+        // ========== DECIDE: MAKER vs TAKER MODE ==========
+        // Gabagool22 takes ~39% of the time, especially when:
+        //   - Edge is low (<1.5%) - opportunity is fleeting
+        //   - Spread is tight (1-2 ticks) - taker cost is acceptable
+        boolean shouldTake = decideTakerMode(completeSetEdge, upBook, downBook, cfg);
+
+        if (shouldTake) {
+            // ========== TAKER MODE: Cross the spread to get immediate fills ==========
+            maybeTakeToken(market, market.upTokenId(), Direction.UP, upBook, downBook, cfg, secondsToEnd, upSizeFactor);
+            maybeTakeToken(market, market.downTokenId(), Direction.DOWN, downBook, upBook, cfg, secondsToEnd, downSizeFactor);
+        } else {
+            // ========== MAKER MODE: Quote at bid with skew and directional bias ==========
+            maybeQuoteTokenWithSkew(market, market.upTokenId(), Direction.UP, upBook, downBook, cfg, secondsToEnd, skewTicksUp, upSizeFactor);
+            maybeQuoteTokenWithSkew(market, market.downTokenId(), Direction.DOWN, downBook, upBook, cfg, secondsToEnd, skewTicksDown, downSizeFactor);
+        }
+    }
+
+    /**
+     * Decide whether to use taker mode (cross the spread) vs maker mode (post at bid).
+     *
+     * Based on empirical analysis of gabagool22's trading behavior:
+     * - ~39% of fills are at the ask (taker)
+     * - Taker probability increases with lower edge (need to act fast)
+     * - Taker probability increases with tighter spreads (lower cost)
+     */
+    private boolean decideTakerMode(BigDecimal completeSetEdge, TopOfBook upBook, TopOfBook downBook, GabagoolConfig cfg) {
+        if (!cfg.takerModeEnabled()) {
+            return false;
+        }
+
+        // Check edge threshold - take more when edge is low (fleeting opportunity)
+        double edgeThreshold = cfg.takerModeMaxEdge();
+        if (completeSetEdge.doubleValue() > edgeThreshold) {
+            return false;  // Edge is high enough to wait for maker fills
+        }
+
+        // Check spread - only take when spread cost is acceptable
+        BigDecimal maxSpread = cfg.takerModeMaxSpread();
+        BigDecimal upSpread = upBook.bestAsk().subtract(upBook.bestBid());
+        BigDecimal downSpread = downBook.bestAsk().subtract(downBook.bestBid());
+
+        if (upSpread.compareTo(maxSpread) > 0 || downSpread.compareTo(maxSpread) > 0) {
+            return false;  // Spread too wide, taker cost too high
+        }
+
+        // When edge is low AND spread is tight, use taker mode
+        // The exact probability (~39% overall) emerges from these conditions being met
+        log.debug("GABAGOOL: Taker mode triggered - edge={}, upSpread={}, downSpread={}",
+                completeSetEdge, upSpread, downSpread);
+        return true;
+    }
+
+    /**
+     * Place a taker order (cross the spread) to get immediate fill.
+     * Used when edge is low and we need to capture fleeting opportunity.
+     */
+    private void maybeTakeToken(GabagoolMarket market, String tokenId, Direction direction,
+                                 TopOfBook book, TopOfBook otherBook, GabagoolConfig cfg,
+                                 long secondsToEnd, double sizeFactor) {
+        if (tokenId == null || tokenId.isBlank() || book == null) {
+            return;
+        }
+
+        BigDecimal bestAsk = book.bestAsk();
+        if (bestAsk == null || bestAsk.compareTo(BigDecimal.valueOf(0.99)) > 0) {
+            return;  // Ask too high, don't take
+        }
+
+        BigDecimal shares = calculateReplicaShares(market, bestAsk, cfg, secondsToEnd);
+        if (shares == null) {
+            return;
+        }
+
+        // Apply directional bias factor to sizing
+        if (sizeFactor != 1.0 && sizeFactor > 0) {
+            shares = shares.multiply(BigDecimal.valueOf(sizeFactor)).setScale(2, RoundingMode.DOWN);
+            if (shares.compareTo(BigDecimal.valueOf(0.01)) < 0) {
+                return;
+            }
+        }
+
+        // Don't place if we already have an open order on this token
+        OrderState existing = ordersByTokenId.get(tokenId);
+        if (existing != null) {
+            // Cancel existing maker order before placing taker order
+            long ageMillis = Duration.between(existing.placedAt(), clock.instant()).toMillis();
+            if (ageMillis < cfg.minReplaceMillis()) {
+                return;  // Too soon to replace
+            }
+            safeCancel(existing, CancelReason.REPLACE_PRICE, secondsToEnd, book, otherBook);
+            ordersByTokenId.remove(tokenId);
+        }
+
+        String otherTokenId = direction == Direction.UP ? market.downTokenId() : market.upTokenId();
+
+        try {
+            log.info("GABAGOOL: TAKER {} order on {} at ask {} (size={}, secondsToEnd={})",
+                    direction, market.slug(), bestAsk, shares, secondsToEnd);
+
+            LimitOrderRequest request = new LimitOrderRequest(
+                    tokenId,
+                    OrderSide.BUY,
+                    bestAsk,  // Cross the spread (taker price)
+                    shares,
+                    ClobOrderType.GTC,
+                    null, null, null, null, null, null, null
+            );
+
+            OrderSubmissionResult result = executorApi.placeLimitOrder(request);
+            String orderId = resolveOrderId(result);
+
+            if (orderId != null) {
+                ordersByTokenId.put(tokenId, new OrderState(
+                        orderId, market, tokenId, direction, bestAsk, shares,
+                        clock.instant(), BigDecimal.ZERO, null, secondsToEnd
+                ));
+            }
+
+            publishOrderEvent(new OrderLifecycleEvent(
+                    "gabagool-directional", runId, "PLACE", PlaceReason.TAKER.name(),
+                    market.slug(), market.marketType(), tokenId, direction.name(),
+                    secondsToEnd, null, orderId != null, orderId == null ? "orderId null" : null,
+                    orderId, bestAsk, shares, null, null, null, null, null,
+                    book, otherTokenId, otherBook
+            ));
+        } catch (Exception e) {
+            log.error("GABAGOOL: Failed to place TAKER {} order on {}: {}", direction, market.slug(), e.getMessage());
+            publishOrderEvent(new OrderLifecycleEvent(
+                    "gabagool-directional", runId, "PLACE", PlaceReason.TAKER.name(),
+                    market.slug(), market.marketType(), tokenId, direction.name(),
+                    secondsToEnd, null, false, truncateError(e),
+                    null, bestAsk, shares, null, null, null, null, null,
+                    book, otherTokenId, otherBook
+            ));
+        }
     }
 
     /**
@@ -1054,6 +1192,10 @@ public class GabagoolDirectionalEngine {
                 // Directional bias parameters
                 cfg.directionalBiasEnabled(),
                 cfg.directionalBiasFactor(),
+                // Taker mode parameters
+                cfg.takerModeEnabled(),
+                cfg.takerModeMaxEdge(),
+                cfg.takerModeMaxSpread(),
                 marketConfigs
         );
     }
@@ -1406,7 +1548,8 @@ public class GabagoolDirectionalEngine {
     private enum PlaceReason {
         QUOTE,
         REPLACE,
-        TOP_UP  // Taker top-up for lagging leg rebalancing
+        TOP_UP,  // Taker top-up for lagging leg rebalancing
+        TAKER    // Aggressive taker order (cross the spread)
     }
 
     private enum CancelReason {
@@ -1500,6 +1643,10 @@ public class GabagoolDirectionalEngine {
             // Directional bias parameters (based on gabagool22's book imbalance trading)
             boolean directionalBiasEnabled,
             double directionalBiasFactor,
+            // Taker mode parameters (gabagool22 takes ~39% of the time)
+            boolean takerModeEnabled,
+            double takerModeMaxEdge,
+            BigDecimal takerModeMaxSpread,
             List<GabagoolMarketConfig> markets
     ) {}
 

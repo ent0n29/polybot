@@ -284,7 +284,7 @@ public record HftProperties(
   }
 
   private static Gabagool defaultGabagool() {
-    return new Gabagool(false, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    return new Gabagool(false, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
   }
 
   /**
@@ -364,6 +364,24 @@ public record HftProperties(
        * Gabagool22 shows ratios of 5-7x, but we start conservatively.
        */
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("3.0") Double directionalBiasFactor,
+      /**
+       * Enable taker mode for aggressive order placement.
+       * When enabled, the strategy will sometimes cross the spread (buy at ask) instead of posting at bid.
+       * Based on gabagool22's behavior: ~39% of trades are taker fills.
+       */
+      @NotNull Boolean takerModeEnabled,
+      /**
+       * Maximum edge threshold for taker mode. When edge < this value and spread is tight,
+       * prefer taker orders to capture fleeting opportunities.
+       * Empirical: gabagool takes more often when edge is low (<1.5%).
+       */
+      @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double takerModeMaxEdge,
+      /**
+       * Maximum spread (in price units) to consider for taker orders.
+       * Only take when spread cost is acceptable.
+       * Typical: 0.02 (2 ticks) means spread cost of 2 cents per share.
+       */
+      @NotNull @PositiveOrZero BigDecimal takerModeMaxSpread,
       @Valid List<GabagoolMarket> markets
   ) {
     public Gabagool {
@@ -423,6 +441,15 @@ public record HftProperties(
       }
       if (directionalBiasFactor == null) {
         directionalBiasFactor = 1.5;  // Conservative: 1.5x favored, 0.67x unfavored
+      }
+      if (takerModeEnabled == null) {
+        takerModeEnabled = true;  // Enabled by default - gabagool22 takes ~39% of the time
+      }
+      if (takerModeMaxEdge == null) {
+        takerModeMaxEdge = 0.015;  // Take when edge < 1.5% (low edge = fleeting opportunity)
+      }
+      if (takerModeMaxSpread == null) {
+        takerModeMaxSpread = BigDecimal.valueOf(0.02);  // Max 2 ticks spread cost
       }
       markets = sanitizeGabagoolMarkets(markets);
     }
