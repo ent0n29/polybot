@@ -35,7 +35,7 @@ public class DockerComposeLifecycleManager {
             // Sort stacks by startup order
             List<DockerComposeStack> orderedStacks = properties.getStacks().stream()
                 .sorted(Comparator.comparingInt(DockerComposeStack::getStartupOrder))
-                .collect(Collectors.toList());
+                .toList();
 
             for (DockerComposeStack stack : orderedStacks) {
                 log.info("═══════════════════════════════════════════");
@@ -72,7 +72,7 @@ public class DockerComposeLifecycleManager {
         // Stop in reverse order
         List<DockerComposeStack> reverseOrderStacks = properties.getStacks().stream()
             .sorted(Comparator.comparingInt(DockerComposeStack::getStartupOrder).reversed())
-            .collect(Collectors.toList());
+            .toList();
 
         for (DockerComposeStack stack : reverseOrderStacks) {
             try {
