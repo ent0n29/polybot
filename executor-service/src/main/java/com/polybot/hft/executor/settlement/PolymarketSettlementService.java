@@ -43,15 +43,30 @@ public class PolymarketSettlementService {
 
   public List<SettlementAction> plan() {
     if (simulator.enabled()) {
+      log.debug("settlement plan: simulator enabled, skipping");
       return List.of();
     }
     String maker = makerAddress();
     if (maker == null) {
+      log.warn("settlement plan: no maker address available (auth not configured?)");
       return List.of();
     }
 
+    log.debug("settlement plan: fetching positions for maker={}", maker);
     JsonNode raw = dataApiClient.getPositions(maker, 500, 0);
     List<PolymarketPosition> positions = objectMapper.convertValue(raw, POSITIONS_LIST);
+
+    int redeemable = 0;
+    int mergeable = 0;
+    for (PolymarketPosition p : positions) {
+      if (p != null) {
+        if (Boolean.TRUE.equals(p.redeemable())) redeemable++;
+        if (Boolean.TRUE.equals(p.mergeable())) mergeable++;
+      }
+    }
+    log.debug("settlement plan: found {} positions ({} redeemable, {} mergeable)",
+        positions.size(), redeemable, mergeable);
+
     return planFromPositions(positions);
   }
 

@@ -1,83 +1,41 @@
 hft:
-  mode: LIVE
+  mode: PAPER
   events:
     enabled: true
-    market-ws-cache-publish-on-start: true
-    # Publish periodic TOB snapshots to keep decision-time ASOF joins "fresh" even when the book is stable.
-    market-ws-snapshot-publish-millis: 1000
   executor:
     base-url: http://localhost:8080
-    # Safety: only enable when intentionally going LIVE against a LIVE executor.
     send-live-ack: false
   polymarket:
     market-ws-enabled: true
-    market-ws-cache-path: .cache/ws/market-ws-cache.strategy.json
-    market-ws-cache-flush-millis: 5000
     gamma-url: https://gamma-api.polymarket.com
   strategy:
-
-    # ============================================================================
-    # GABAGOOL22 REVERSE-ENGINEERED STRATEGY
-    # ============================================================================
-    # Based on continuous ingestion (Dec 14+ 2025)
-    #
-    # KEY FINDINGS:
-    # - Markets: BTC + ETH ONLY, 15min + 1hour Up/Down
-    # - Timing: 15m series trades span most of the 0..15m lifetime (with a tilt to 10–15m);
-    #          1h series trades span 0..60m (median ~35m).
-    # - Execution: maker quoting at bid + occasional taker top-ups on the lagging leg
-    #   (FAST_TOP_UP / TOP_UP) to complete hedges quickly when fills are asynchronous.
-    # ============================================================================
     gabagool:
       enabled: true
       refresh-millis: 500
-      min-replace-millis: 5000   # minimum cancel/replace cadence per tokenId
-      min-seconds-to-end: 0      # trade window start (seconds to market end)
-      max-seconds-to-end: 3600   # trade window end (caps 1h; 15m is capped to 900 in code)
-      improve-ticks: 0           # Place AT best bid (true maker, matches gabagool22)
+      min-replace-millis: 5000
+      min-seconds-to-end: 0
+      max-seconds-to-end: 3600
+      improve-ticks: 0
 
-      # ============================================================================
-      # DYNAMIC SIZING - All sizing derives from bankroll, no static values!
-      # ============================================================================
-      # gabagool22 averages ~$7 notional per order. With a $5k bankroll, that's ~0.14%
-      # We use 0.1% as baseline, with safety caps to prevent oversizing.
-      # ============================================================================
+      # Dynamic sizing: FIXED mode for sim, AUTO_CASH for live
+      quote-size: 10
+      quote-size-bankroll-fraction: 0.001
+      bankroll-mode: FIXED
+      bankroll-usd: 500
+      bankroll-refresh-millis: 10000
+      bankroll-smoothing-alpha: 0.2
+      bankroll-min-threshold: 50
+      bankroll-trading-fraction: 0.8
+      max-order-bankroll-fraction: 0.02
+      max-total-bankroll-fraction: 0.5
 
-      # Primary sizing: each order = 0.1% of effective bankroll
-      quote-size: 10                        # Fallback only if bankroll unavailable
-      quote-size-bankroll-fraction: 0.001   # 0.1% of bankroll per order (~$10 on $10k)
-
-      # Bankroll source: AUTO_CASH = live USDC balance from exchange
-      bankroll-mode: AUTO_CASH
-      bankroll-usd: 0                       # Ignored when using AUTO_* mode
-      bankroll-refresh-millis: 10000        # Refresh balance every 10s
-
-      # EMA smoothing: prevents sizing whiplash from balance fluctuations
-      bankroll-smoothing-alpha: 0.2         # Moderate smoothing (0.1=slow, 1.0=instant)
-
-      # Safety caps
-      bankroll-min-threshold: 50            # Stop trading if balance < $50
-      bankroll-trading-fraction: 0.8        # Only deploy 80% of bankroll (20% buffer)
-      max-order-bankroll-fraction: 0.02     # Max 2% of bankroll per single order
-      max-total-bankroll-fraction: 0.5      # Max 50% total exposure across all orders
-
-      # Dynamic scaling (optional, for matching gabagool22's share schedule)
-      dynamic-sizing-enabled: false         # Enable if you want to scale to gabagool's exact sizes
-      dynamic-sizing-min-multiplier: 0.25
-      dynamic-sizing-max-multiplier: 5.0
-
-      # ============================================================================
-      # COMPLETE-SET COORDINATION (gabagool22's core edge)
-      # ============================================================================
-      # Research shows ~88% of gabagool22's trades are complete-set-like (paired UP+DOWN fills)
-      # The edge is: 1.0 - (bid_up + bid_down), typically 0.01-0.02 when WS TOB is fresh
-      # ============================================================================
-      complete-set-min-edge: 0.01           # Min complete-set edge to quote (1 - bid_up - bid_down)
-      complete-set-max-skew-ticks: 1        # Reduce hedging aggressiveness (helps match gab imbalance distribution)
-      complete-set-imbalance-shares-for-max-skew: 200  # Allow moderate imbalance before max skew kicks in
-      complete-set-top-up-enabled: true     # Cross spread on lagging leg near market end
-      complete-set-top-up-seconds-to-end: 60  # Only top-up when <= N seconds to end
-      complete-set-top-up-min-shares: 10    # Only top-up when imbalance is meaningful
+      # Complete-set arbitrage
+      complete-set-min-edge: 0.01
+      complete-set-max-skew-ticks: 1
+      complete-set-imbalance-shares-for-max-skew: 200
+      complete-set-top-up-enabled: true
+      complete-set-top-up-seconds-to-end: 60
+      complete-set-top-up-min-shares: 10
       complete-set-fast-top-up-enabled: true
       complete-set-fast-top-up-min-shares: 10
       complete-set-fast-top-up-min-seconds-after-fill: 3
@@ -85,15 +43,11 @@ hft:
       complete-set-fast-top-up-cooldown-millis: 15000
       complete-set-fast-top-up-min-edge: 0.01
 
-      # ============================================================================
-      # TAKER MODE (one-leg taker + other-leg maker)
-      # ============================================================================
+      # Taker mode (disabled - using maker-only)
       taker-mode-enabled: false
       taker-mode-max-edge: 0.015
       taker-mode-max-spread: 0.02
 
-# Logging - enable debug for gabagool strategy
 logging:
   level:
-    com.polybot.hft.polymarket.strategy: DEBUG
-    com.polybot.hft.polymarket.strategy.GabagoolMarketDiscovery: DEBUG
+    com.polybot.hft.polymarket.strategy: INFO

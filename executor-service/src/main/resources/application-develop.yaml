@@ -2,60 +2,36 @@ hft:
   mode: PAPER
   events:
     enabled: true
-    # Publish periodic TOB snapshots to keep decision-time ASOF joins "fresh" even when the book is stable.
-    market-ws-snapshot-publish-millis: 1000
   polymarket:
     market-ws-enabled: true
-    market-ws-cache-path: .cache/ws/market-ws-cache.executor.json
-    market-ws-cache-flush-millis: 5000
     auth:
-      # Use env vars for real keys; keep develop profile safe by default.
       private-key: ""
       auto-create-or-derive-api-creds: false
 
-# Logging
 logging:
   level:
-    com.polybot.hft: DEBUG
+    com.polybot.hft: INFO
+    com.polybot.hft.executor.settlement: DEBUG
 
 executor:
   sim:
     enabled: true
-    username: polybot-sim
-    proxy-address: sim
     fills-enabled: true
-    # ============================================================================
-    # SIMULATOR FILL MODEL - Calibrated from REAL live trading data (Dec 20, 2025)
-    # ============================================================================
-    # Real data: 413 orders → 151 fills (36.6% fill rate)
-    # Fill timing: 38.7% within 10s, 50.7% within 30s, 56% within 60s
-    # Median time to fill: ~28 seconds
-    # ============================================================================
     fill-poll-millis: 250
-    maker-fill-probability-per-poll: 0.03        # Calibrated: was 0.01, 3x to match real fills
-    maker-fill-probability-multiplier-per-tick: 1.2  # Slower ramp for realistic timing
-    maker-fill-probability-max-per-poll: 0.15    # Calibrated: was 0.05, 3x higher
-    maker-fill-fraction-of-remaining: 0.25       # Partial fills still 25% of remaining
+    maker-fill-probability-per-poll: 0.03
+    maker-fill-probability-multiplier-per-tick: 1.2
+    maker-fill-probability-max-per-poll: 0.15
+    maker-fill-fraction-of-remaining: 0.25
 
-  # On-chain settlement (merge/redeem) - disabled in develop/sim mode
   onchain:
     rpc-url: https://polygon-rpc.com
     proxy-wallet-factory-address: "0xab45c5a4b0c941a2f231c04c3f49182e1a254052"
 
-  # Auto merge/redeem configuration
-  # ============================================================================
-  # SETTLEMENT STRATEGY (based on gabagool22's complete-set approach):
-  # - REDEEM: Automatically claim winnings when markets resolve (CRITICAL - always enable)
-  # - MERGE: Convert complete sets (UP+DOWN) back to USDC to lock in edge
-  #
-  # gabagool22's edge = 1.0 - (bid_up + bid_down), typically 1-2%
-  # Merging immediately after fills locks in this edge as profit
-  # ============================================================================
   settlement:
-    enabled: false          # Set to true in LIVE mode to enable auto-settlement
-    dry-run: true           # Set to false to actually send on-chain transactions
-    poll-interval-millis: 30000   # Check for redeemable/mergeable positions every 30s
-    min-merge-shares: 10    # Minimum shares to trigger a merge (avoid dust txs)
-    max-retries: 3          # Retry failed settlement txs up to 3 times (exponential backoff: 1s, 2s, 4s)
-    merge-only-near-end: true   # Only merge when markets ending soon (matches gabagool22 behavior)
-    merge-seconds-before-end: 600  # Merge when market ends within 10 minutes (catches both 15m and 1h markets)
+    enabled: false
+    dry-run: true
+    poll-interval-millis: 30000
+    min-merge-shares: 10
+    max-retries: 3
+    merge-only-near-end: true
+    merge-seconds-before-end: 600
