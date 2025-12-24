@@ -4,6 +4,8 @@
 
 Polybot provides a complete trading infrastructure for [Polymarket](https://polymarket.com) prediction markets, along with powerful tools to analyze and reverse-engineer successful trading strategies from any user.
 
+![Strategy Analysis Dashboard](docs/showcase_readme.png)
+
 ## Features
 
 ### Trading Infrastructure
