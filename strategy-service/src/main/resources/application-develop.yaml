@@ -13,47 +13,53 @@ hft:
     market-ws-cache-path: .cache/ws/market-ws-cache.strategy.json
     market-ws-cache-flush-millis: 5000
   strategy:
+    btcarb:
+      enabled: false           # EXPLICITLY DISABLED
     gabagool:
-      enabled: true
+      enabled: true            # ENABLED for full 15m run
       refresh-millis: 500
-      min-replace-millis: 500           # Min time before replacing an order
+      min-replace-millis: 500
       min-seconds-to-end: 0
       max-seconds-to-end: 3600
       improve-ticks: 0
 
-      # Dynamic sizing: FIXED mode for sim, AUTO_CASH for live
-      quote-size: 10
+      # Dynamic sizing: FIXED mode for sim
+      quote-size: 5            # Smaller quote size for $20 budget
       quote-size-bankroll-fraction: 0.001
       bankroll-mode: FIXED
-      bankroll-usd: 500
+      bankroll-usd: 20
       bankroll-refresh-millis: 10000
       bankroll-smoothing-alpha: 0.2
-      bankroll-min-threshold: 50
-      bankroll-trading-fraction: 0.8
-      max-order-bankroll-fraction: 0.02
-      max-total-bankroll-fraction: 0.5
+      bankroll-min-threshold: 5
+      bankroll-trading-fraction: 1.0              # Use full bankroll
+      max-order-bankroll-fraction: 0.5            # Up to $10 per order
+      max-total-bankroll-fraction: 0.8           # Reduced to 0.8 for hedging buffer
 
-      # Complete-set arbitrage configuration
-      # NOTE: Top traders don't pre-filter by edge - they quote both sides aggressively
-      # Edge emerges from spread capture + inventory skewing, not from strict filtering
-      complete-set-min-edge: 0.001                    # Near-zero: aggressive quoting
-      complete-set-max-skew-ticks: 0                  # Max ticks to skew based on inventory
-      complete-set-imbalance-shares-for-max-skew: 5000 # Shares imbalance for max skew
+      # Complete-set arbitrage configuration (Aggressive for activity)
+      complete-set-min-edge: 0.001
+      complete-set-max-skew-ticks: 0
+      complete-set-imbalance-shares-for-max-skew: 5000
       complete-set-top-up-enabled: true
-      complete-set-top-up-seconds-to-end: 120         # Start top-up this far from end
-      complete-set-top-up-min-shares: 80              # Min imbalance to trigger top-up
-      complete-set-fast-top-up-enabled: false
-      complete-set-fast-top-up-min-shares: 30         # Min shares for fast top-up
-      complete-set-fast-top-up-min-seconds-after-fill: 30  # Min seconds after fill
-      complete-set-fast-top-up-max-seconds-after-fill: 180 # Max seconds after fill
-      complete-set-fast-top-up-cooldown-millis: 45000 # Cooldown between fast top-ups
-      complete-set-fast-top-up-min-edge: 0            # Breakeven or better for pair completion
+      complete-set-top-up-seconds-to-end: 180         # Start taker top-ups earlier
+      complete-set-top-up-min-shares: 5               # Lower threshold
+      complete-set-fast-top-up-enabled: true          # CRITICAL for pairing
+      complete-set-fast-top-up-min-shares: 2
+      complete-set-fast-top-up-min-seconds-after-fill: 2
+      complete-set-fast-top-up-max-seconds-after-fill: 600
+      complete-set-fast-top-up-cooldown-millis: 2000  # Low cooldown
+      complete-set-fast-top-up-min-edge: 0
 
-      # Taker mode - cross the spread when edge is favorable
+      # Strict Pairing & Aggressive Hedging
+      strict-pairing-enabled: true
+      max-imbalance-shares: 5.0                  # Strictly limit unhedged shares
+      aggressive-hedge-seconds-to-end: 300       # Hedge aggressively in last 5m
+      aggressive-hedge-min-edge: -0.01           # Allow slight negative edge to close position
+
+      # Taker mode
       taker-mode-enabled: true
-      taker-mode-max-edge: 0.004                      # Max edge to take (0.4 cents)
-      taker-mode-max-spread: 0.01                     # Max spread to cross (1 cent)
+      taker-mode-max-edge: 0.005
+      taker-mode-max-spread: 0.02
 
 logging:
   level:
-    com.polybot.hft.polymarket.strategy: INFO
+    com.polybot.hft.polymarket.strategy: DEBUG

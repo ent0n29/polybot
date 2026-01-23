@@ -7,6 +7,7 @@ Usage:
     ./.venv/bin/python research/paper_trading_dashboard.py --watch  # Auto-refresh every 30s
 """
 
+import os
 import argparse
 import time
 from datetime import datetime, timezone
@@ -144,14 +145,15 @@ def run_dashboard():
 
     # 6. Data Quality (WS coverage)
     print_section("WS TOB Coverage (Last 10 min)")
-    ws = client.query("""
+    target_user = os.getenv('POLYMARKET_TARGET_USER', 'TARGET_USER')
+    ws = client.query(f"""
         SELECT
             count() as trades,
             countIf(ws_mid > 0) as with_ws,
             round(100.0 * countIf(ws_mid > 0) / count(), 1) as coverage_pct,
             round(avgIf(ws_tob_lag_millis, ws_mid > 0), 0) as avg_lag_ms
         FROM polybot.user_trade_enriched_v4
-        WHERE username = os.getenv('POLYMARKET_TARGET_USER', 'TARGET_USER')
+        WHERE username = '{target_user}'
           AND ts > now() - INTERVAL 10 MINUTE
     """).result_rows
     if ws and ws[0][0] > 0:
@@ -162,13 +164,13 @@ def run_dashboard():
 
     # 7. target user Activity (for comparison)
     print_section("target user Activity (Last 10 min)")
-    gab = client.query("""
+    gab = client.query(f"""
         SELECT
             count() as trades,
             round(sum(price * size), 2) as notional,
             round(sumIf(realized_pnl, outcome != ''), 2) as realized_pnl
         FROM polybot.user_trade_enriched_v4
-        WHERE username = os.getenv('POLYMARKET_TARGET_USER', 'TARGET_USER')
+        WHERE username = '{target_user}'
           AND ts > now() - INTERVAL 10 MINUTE
     """).result_rows
     if gab and gab[0][0] > 0:

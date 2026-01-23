@@ -26,8 +26,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * Notes:
  * - Market universe is stable: BTC/ETH Up/Down 15m + 1h series only.
- * - The replica strategy is intended to be market-neutral (no BTC direction bias); alpha is driven by
- *   platform mispricing + timing/execution, not by predicting Up vs Down.
+ * - The replica strategy is intended to be market-neutral (no BTC direction
+ * bias); alpha is driven by
+ * platform mispricing + timing/execution, not by predicting Up vs Down.
  */
 @Component
 @Slf4j
@@ -56,11 +57,11 @@ public class GabagoolMarketDiscovery {
         return new ArrayList<>(activeMarkets);
     }
 
-  /**
-   * Refresh market discovery every 30 seconds.
-   */
-  @Scheduled(fixedDelay = 30_000, initialDelay = 5_000)
-  public void discoverMarkets() {
+    /**
+     * Refresh market discovery every 30 seconds.
+     */
+    @Scheduled(fixedDelay = 30_000, initialDelay = 5_000)
+    public void discoverMarkets() {
         if (!properties.strategy().gabagool().enabled()) {
             return;
         }
@@ -77,7 +78,8 @@ public class GabagoolMarketDiscovery {
             // - 15m series fills span ~0-15m before end
             // - 1h series fills span ~0-60m before end
             //
-            // So we should track the "current" market instances, not only the ones ending soon.
+            // So we should track the "current" market instances, not only the ones ending
+            // soon.
             Instant now = Instant.now();
             Instant maxEnd = now.plus(2, ChronoUnit.HOURS);
 
@@ -87,7 +89,8 @@ public class GabagoolMarketDiscovery {
                     .filter(m -> m.endTime().isBefore(maxEnd))
                     .filter(m -> {
                         // Avoid tracking future market instances that haven't started trading yet.
-                        Duration duration = "updown-15m".equals(m.marketType()) ? Duration.ofMinutes(15) : Duration.ofHours(1);
+                        Duration duration = "updown-15m".equals(m.marketType()) ? Duration.ofMinutes(15)
+                                : Duration.ofHours(1);
                         Instant startTime = m.endTime().minus(duration);
                         return !now.isBefore(startTime);
                     })
@@ -117,19 +120,16 @@ public class GabagoolMarketDiscovery {
     /**
      * Fetch all active Up/Down events from Gamma API.
      *
-     * Gamma's public /markets listing does not include the fast up/down series reliably.
-     * Instead, we deterministically generate candidate slugs around \"now\" and query /events?slug=...
+     * Gamma's public /markets listing does not include the fast up/down series
+     * reliably.
+     * Instead, we deterministically generate candidate slugs around \"now\" and
+     * query /events?slug=...
      */
     private List<DiscoveredMarket> fetchActiveUpDownEvents() {
         Instant now = Instant.now();
 
         List<String> candidates = new ArrayList<>();
         candidates.addAll(candidateUpDown15mSlugs("btc", now));
-        candidates.addAll(candidateUpDown15mSlugs("eth", now));
-
-        ZonedDateTime nowEt = ZonedDateTime.ofInstant(now, ET_ZONE);
-        candidates.addAll(candidateUpOrDown1hSlugs("bitcoin", nowEt));
-        candidates.addAll(candidateUpOrDown1hSlugs("ethereum", nowEt));
 
         List<DiscoveredMarket> markets = new ArrayList<>(candidates.size());
         Set<String> seenSlugs = new HashSet<>();
@@ -173,8 +173,7 @@ public class GabagoolMarketDiscovery {
                 hourStart.minusHours(2),
                 hourStart.minusHours(1),
                 hourStart,
-                hourStart.plusHours(1)
-        );
+                hourStart.plusHours(1));
         List<String> out = new ArrayList<>(candidates.size());
         for (ZonedDateTime start : candidates) {
             out.add(buildUpOrDown1hSlug(assetPrefix, start));
@@ -183,7 +182,8 @@ public class GabagoolMarketDiscovery {
     }
 
     private static String buildUpOrDown1hSlug(String assetPrefix, ZonedDateTime hourStartEt) {
-        String month = hourStartEt.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH).toLowerCase(Locale.ROOT);
+        String month = hourStartEt.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH)
+                .toLowerCase(Locale.ROOT);
         int day = hourStartEt.getDayOfMonth();
         int hour24 = hourStartEt.getHour();
         int hour12 = hour24 % 12;
@@ -270,8 +270,7 @@ public class GabagoolMarketDiscovery {
                     downTokenId,
                     endTime,
                     closed,
-                    marketType
-            );
+                    marketType);
         } catch (Exception e) {
             log.debug("Failed to parse market: {}", e.getMessage());
             return null;
@@ -400,8 +399,7 @@ public class GabagoolMarketDiscovery {
                     downTokenId,
                     endTime,
                     closed,
-                    marketType
-            );
+                    marketType);
         } catch (Exception e) {
             log.debug("Failed to parse event {}: {}", slug, e.getMessage());
             return null;
@@ -479,6 +477,6 @@ public class GabagoolMarketDiscovery {
             String downTokenId,
             Instant endTime,
             boolean closed,
-            String marketType
-    ) {}
+            String marketType) {
+    }
 }

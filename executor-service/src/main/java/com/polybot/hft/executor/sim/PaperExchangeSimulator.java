@@ -44,8 +44,10 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * Goals:
  * - Exercise the full strategy/executor lifecycle without touching real funds
- * - Provide realistic-ish order status transitions (OPEN -> PARTIAL -> FILLED/CANCELED)
- * - Optionally publish simulated polymarket.user.trade events so ClickHouse views/analysis can run
+ * - Provide realistic-ish order status transitions (OPEN -> PARTIAL ->
+ * FILLED/CANCELED)
+ * - Optionally publish simulated polymarket.user.trade events so ClickHouse
+ * views/analysis can run
  */
 @Component
 @RequiredArgsConstructor
@@ -79,8 +81,7 @@ public class PaperExchangeSimulator {
         sim.makerFillProbabilityPerPoll(),
         sim.makerFillProbabilityMultiplierPerTick(),
         sim.makerFillProbabilityMaxPerPoll(),
-        sim.makerFillFractionOfRemaining()
-    );
+        sim.makerFillFractionOfRemaining());
   }
 
   public boolean enabled() {
@@ -104,8 +105,7 @@ public class PaperExchangeSimulator {
         Instant.now(clock),
         "OPEN",
         matched,
-        remaining
-    );
+        remaining);
     ordersById.put(orderId, order);
     publishOrderStatus(order, null);
 
@@ -181,8 +181,7 @@ public class PaperExchangeSimulator {
           Instant.now(clock),
           "FILLED",
           shares,
-          BigDecimal.ZERO
-      );
+          BigDecimal.ZERO);
       ordersById.put(orderId, order);
 
       positionsByTokenId.compute(order.tokenId, (k, prev) -> {
@@ -235,8 +234,7 @@ public class PaperExchangeSimulator {
           Instant.now(clock),
           "FILLED",
           shares,
-          BigDecimal.ZERO
-      );
+          BigDecimal.ZERO);
       ordersById.put(orderId, order);
 
       positionsByTokenId.compute(order.tokenId, (k, prev) -> {
@@ -264,6 +262,55 @@ public class PaperExchangeSimulator {
         .put("status", "REJECTED")
         .put("reason", "unsupported_side");
     return new OrderSubmissionResult(hft.mode(), null, resp);
+  }
+
+  public JsonNode mergePositions(String upTokenId, String downTokenId, BigDecimal amount) {
+    Objects.requireNonNull(upTokenId, "upTokenId");
+    Objects.requireNonNull(downTokenId, "downTokenId");
+    Objects.requireNonNull(amount, "amount");
+
+    Position upPos = positionsByTokenId.get(upTokenId);
+    Position downPos = positionsByTokenId.get(downTokenId);
+
+    if (upPos == null || downPos == null || upPos.shares.compareTo(amount) < 0
+        || downPos.shares.compareTo(amount) < 0) {
+      return objectMapper.createObjectNode()
+          .put("success", false)
+          .put("reason", "insufficient_shares");
+    }
+
+    positionsByTokenId.compute(upTokenId,
+        (k, v) -> new Position(v.shares.subtract(amount), v.costUsd.subtract(amount.multiply(v.avgPrice()))));
+    positionsByTokenId.compute(downTokenId,
+        (k, v) -> new Position(v.shares.subtract(amount), v.costUsd.subtract(amount.multiply(v.avgPrice()))));
+
+    log.info("SIM MERGE: {} shares of {} and {} merged", amount, suffix(upTokenId), suffix(downTokenId));
+
+    return objectMapper.createObjectNode()
+        .put("success", true)
+        .put("mergedAmount", amount);
+  }
+
+  public JsonNode splitPosition(String upTokenId, String downTokenId, BigDecimal amount) {
+    Objects.requireNonNull(upTokenId, "upTokenId");
+    Objects.requireNonNull(downTokenId, "downTokenId");
+    Objects.requireNonNull(amount, "amount");
+
+    // In a sim split, we just update the positions as if minted from collateral.
+    positionsByTokenId.compute(upTokenId, (k, v) -> {
+      Position p = v == null ? new Position(BigDecimal.ZERO, BigDecimal.ZERO) : v;
+      return new Position(p.shares.add(amount), p.costUsd.add(amount.multiply(BigDecimal.valueOf(0.5))));
+    });
+    positionsByTokenId.compute(downTokenId, (k, v) -> {
+      Position p = v == null ? new Position(BigDecimal.ZERO, BigDecimal.ZERO) : v;
+      return new Position(p.shares.add(amount), p.costUsd.add(amount.multiply(BigDecimal.valueOf(0.5))));
+    });
+
+    log.info("SIM SPLIT: {} USDC split into {} and {}", amount, suffix(upTokenId), suffix(downTokenId));
+
+    return objectMapper.createObjectNode()
+        .put("success", true)
+        .put("splitAmount", amount);
   }
 
   public JsonNode cancelOrder(String orderId) {
@@ -368,16 +415,12 @@ public class PaperExchangeSimulator {
           meta == null ? null : meta.outcomeIndex(),
           null,
           null,
-          null
-      ));
+          null));
     }
     return out.toArray(PolymarketPosition[]::new);
   }
 
-  @Scheduled(
-      initialDelayString = "5000",
-      fixedDelayString = "${executor.sim.fill-poll-millis:250}"
-  )
+  @Scheduled(initialDelayString = "5000", fixedDelayString = "${executor.sim.fill-poll-millis:250}")
   void simulateFills() {
     if (!enabled()) {
       return;
@@ -424,7 +467,8 @@ public class PaperExchangeSimulator {
       return;
     }
 
-    // Maker-like fill heuristic: if we're at/above the best bid, we sometimes get hit.
+    // Maker-like fill heuristic: if we're at/above the best bid, we sometimes get
+    // hit.
     if (bestBid.compareTo(price) > 0) {
       return;
     }
@@ -550,8 +594,7 @@ public class PaperExchangeSimulator {
     Map<String, Object> data = Map.of(
         "username", sim.username(),
         "proxyAddress", sim.proxyAddress(),
-        "trade", trade
-    );
+        "trade", trade);
     String key = "simtrade:" + order.orderId + ":" + UUID.randomUUID();
     events.publish(Instant.ofEpochSecond(tsSeconds), USER_TRADE_EVENT_TYPE, key, data);
   }
@@ -613,8 +656,7 @@ public class PaperExchangeSimulator {
           title == null ? "" : title,
           conditionId == null ? "" : conditionId,
           outcome,
-          outcomeIndex
-      );
+          outcomeIndex);
       metaByTokenId.put(tokenId, meta);
       return Optional.of(meta);
     } catch (Exception e) {
@@ -667,8 +709,7 @@ public class PaperExchangeSimulator {
         matched,
         remaining,
         orderJson,
-        error
-    ));
+        error));
   }
 
   private static boolean isTerminal(String status) {
@@ -753,8 +794,7 @@ public class PaperExchangeSimulator {
       String title,
       String conditionId,
       String outcome,
-      int outcomeIndex
-  ) {
+      int outcomeIndex) {
   }
 
   private static final class SimOrder {
@@ -782,8 +822,7 @@ public class PaperExchangeSimulator {
         Instant createdAt,
         String status,
         BigDecimal matchedSize,
-        BigDecimal remainingSize
-    ) {
+        BigDecimal remainingSize) {
       this.orderId = orderId;
       this.tokenId = tokenId;
       this.side = side;
