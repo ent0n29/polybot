@@ -17,8 +17,11 @@ public record CompleteSetConfig(
         long fastTopUpMinSecondsAfterFill,
         long fastTopUpMaxSecondsAfterFill,
         long fastTopUpCooldownMillis,
-        double fastTopUpMinEdge
-) {
+        double fastTopUpMinEdge,
+        boolean strictPairingEnabled,
+        BigDecimal maxImbalanceShares,
+        long aggressiveHedgeSecondsToEnd,
+        double aggressiveHedgeMinEdge) {
     public static CompleteSetConfig defaults() {
         return new CompleteSetConfig(
                 0.01,
@@ -32,7 +35,10 @@ public record CompleteSetConfig(
                 2,
                 120,
                 5000,
-                0.0
-        );
+                0.0,
+                false,
+                BigDecimal.valueOf(10),
+                300,
+                -0.01);
     }
 }

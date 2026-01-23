@@ -91,9 +91,8 @@ public class PolymarketController {
 
   @GetMapping("/health")
   public ResponseEntity<PolymarketHealthResponse> getHealth(
-      @RequestParam(name="deep", required=false, defaultValue="false") boolean deep,
-      @RequestParam(name="tokenId", required=false) String tokenId
-  ) {
+      @RequestParam(name = "deep", required = false, defaultValue = "false") boolean deep,
+      @RequestParam(name = "tokenId", required = false) String tokenId) {
     log.info("api /health deep={} tokenId={}", deep, tokenId);
     return ResponseEntity.ok(tradingService.getHealth(deep, tokenId));
   }
@@ -105,9 +104,7 @@ public class PolymarketController {
             properties.mode().name(),
             signerAddress(),
             makerAddress(),
-            funderAddress()
-        )
-    );
+            funderAddress()));
   }
 
   @GetMapping("/bankroll")
@@ -117,10 +114,9 @@ public class PolymarketController {
 
   @GetMapping("/positions")
   public ResponseEntity<JsonNode> getPositions(
-      @RequestParam(name="user", required=false) String user,
-      @RequestParam(name="limit", required=false, defaultValue="200") int limit,
-      @RequestParam(name="offset", required=false, defaultValue="0") int offset
-  ) {
+      @RequestParam(name = "user", required = false) String user,
+      @RequestParam(name = "limit", required = false, defaultValue = "200") int limit,
+      @RequestParam(name = "offset", required = false, defaultValue = "0") int offset) {
     if (simulator.enabled()) {
       return ResponseEntity.ok(objectMapper.valueToTree(simulator.getPositions(limit, offset)));
     }
@@ -190,7 +186,8 @@ public class PolymarketController {
           : tradingService.placeMarketOrder(request);
       String orderId = resolveOrderId(result);
       if (!simulator.enabled() && orderId != null && !orderId.isBlank()) {
-        // For BUY market orders, request.amount is USDC; size in shares is unknown without querying.
+        // For BUY market orders, request.amount is USDC; size in shares is unknown
+        // without querying.
         BigDecimal size = request.side() == OrderSide.SELL ? request.amount() : null;
         orderMonitor.trackNewOrder(orderId, request.tokenId(), request.side(), request.price(), size);
       }
@@ -200,6 +197,30 @@ public class PolymarketController {
       safePublishMarketOrderEvent(request, null, e);
       throw e;
     }
+  }
+
+  @PostMapping("/orders/merge")
+  public ResponseEntity<JsonNode> mergePositions(
+      @RequestParam(name = "upTokenId") String upTokenId,
+      @RequestParam(name = "downTokenId") String downTokenId,
+      @RequestParam(name = "amount") BigDecimal amount) {
+    if (!simulator.enabled()) {
+      return ResponseEntity.status(405).build(); // Not allowed for live
+    }
+    log.info("api /orders/merge amount={} up={} down={}", amount, upTokenId, downTokenId);
+    return ResponseEntity.ok(simulator.mergePositions(upTokenId, downTokenId, amount));
+  }
+
+  @PostMapping("/orders/split")
+  public ResponseEntity<JsonNode> splitPosition(
+      @RequestParam(name = "upTokenId") String upTokenId,
+      @RequestParam(name = "downTokenId") String downTokenId,
+      @RequestParam(name = "amount") BigDecimal amount) {
+    if (!simulator.enabled()) {
+      return ResponseEntity.status(405).build(); // Not allowed for live
+    }
+    log.info("api /orders/split amount={} up={} down={}", amount, upTokenId, downTokenId);
+    return ResponseEntity.ok(simulator.splitPosition(upTokenId, downTokenId, amount));
   }
 
   @DeleteMapping("/orders/{orderId}")
@@ -228,8 +249,7 @@ public class PolymarketController {
       @RequestParam(name = "market", required = false) String market,
       @RequestParam(name = "asset_id", required = false) String assetId,
       @RequestParam(name = "id", required = false) String id,
-      @RequestParam(name = "next_cursor", required = false) String nextCursor
-  ) {
+      @RequestParam(name = "next_cursor", required = false) String nextCursor) {
     Map<String, String> query = new LinkedHashMap<>();
     if (market != null && !market.isBlank()) {
       query.put("market", market);
@@ -255,8 +275,7 @@ public class PolymarketController {
       @RequestParam(name = "before", required = false) Integer before,
       @RequestParam(name = "after", required = false) Integer after,
       @RequestParam(name = "id", required = false) String id,
-      @RequestParam(name = "next_cursor", required = false) String nextCursor
-  ) {
+      @RequestParam(name = "next_cursor", required = false) String nextCursor) {
     Map<String, String> query = new LinkedHashMap<>();
     if (makerAddress != null && !makerAddress.isBlank()) {
       query.put("maker_address", makerAddress);
@@ -279,11 +298,13 @@ public class PolymarketController {
     if (nextCursor != null && !nextCursor.isBlank()) {
       query.put("next_cursor", nextCursor);
     }
-    log.info("api /trades maker_address={} market={} asset_id={} before={} after={} id={} next_cursor={}", makerAddress, market, assetId, before, after, id, nextCursor);
+    log.info("api /trades maker_address={} market={} asset_id={} before={} after={} id={} next_cursor={}", makerAddress,
+        market, assetId, before, after, id, nextCursor);
     return ResponseEntity.ok(tradingService.getTrades(query));
   }
 
-  private void safePublishLimitOrderEvent(LimitOrderRequest request, OrderSubmissionResult result, RuntimeException error) {
+  private void safePublishLimitOrderEvent(LimitOrderRequest request, OrderSubmissionResult result,
+      RuntimeException error) {
     if (!events.isEnabled()) {
       return;
     }
@@ -309,14 +330,13 @@ public class PolymarketController {
               mode,
               error == null,
               orderId,
-              err
-          )
-      );
+              err));
     } catch (Exception ignored) {
     }
   }
 
-  private void safePublishMarketOrderEvent(MarketOrderRequest request, OrderSubmissionResult result, RuntimeException error) {
+  private void safePublishMarketOrderEvent(MarketOrderRequest request, OrderSubmissionResult result,
+      RuntimeException error) {
     if (!events.isEnabled()) {
       return;
     }
@@ -341,9 +361,7 @@ public class PolymarketController {
               mode,
               error == null,
               orderId,
-              err
-          )
-      );
+              err));
     } catch (Exception ignored) {
     }
   }
@@ -358,8 +376,7 @@ public class PolymarketController {
       events.publish(
           HftEventTypes.EXECUTOR_ORDER_CANCEL,
           orderId,
-          new ExecutorCancelOrderEvent(orderId, mode, error == null, err)
-      );
+          new ExecutorCancelOrderEvent(orderId, mode, error == null, err));
     } catch (Exception ignored) {
     }
   }
@@ -394,16 +411,14 @@ public class PolymarketController {
           phe.statusCode(),
           phe.method(),
           phe.uri().toString(),
-          truncate(phe.getMessage(), ERROR_MAX_LEN)
-      );
+          truncate(phe.getMessage(), ERROR_MAX_LEN));
     }
     return new ExecutorOrderError(
         e.getClass().getSimpleName(),
         null,
         null,
         null,
-        truncate(e.getMessage() != null ? e.getMessage() : e.toString(), ERROR_MAX_LEN)
-    );
+        truncate(e.getMessage() != null ? e.getMessage() : e.toString(), ERROR_MAX_LEN));
   }
 
   private static String truncate(String s, int max) {

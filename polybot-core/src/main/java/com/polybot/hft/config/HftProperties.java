@@ -12,14 +12,13 @@ import java.util.List;
 import java.util.Objects;
 
 @Validated
-@ConfigurationProperties(prefix="hft")
+@ConfigurationProperties(prefix = "hft")
 public record HftProperties(
     TradingMode mode,
     @Valid Polymarket polymarket,
     @Valid Executor executor,
     @Valid Risk risk,
-    @Valid Strategy strategy
-) {
+    @Valid Strategy strategy) {
 
   public HftProperties {
     if (mode == null) {
@@ -50,14 +49,13 @@ public record HftProperties(
         .toList();
   }
 
-
-
   private static Executor defaultExecutor() {
     return new Executor(null, null);
   }
 
   private static Polymarket defaultPolymarket() {
-    return new Polymarket(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    return new Polymarket(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+        null);
   }
 
   private static Rest defaultRest() {
@@ -84,8 +82,6 @@ public record HftProperties(
     return new Strategy(null);
   }
 
-
-
   public enum TradingMode {
     PAPER,
     LIVE,
@@ -108,8 +104,7 @@ public record HftProperties(
 
   public record Executor(
       String baseUrl,
-      @NotNull Boolean sendLiveAck
-  ) {
+      @NotNull Boolean sendLiveAck) {
     public Executor {
       if (baseUrl == null || baseUrl.isBlank()) {
         baseUrl = "http://localhost:8080";
@@ -134,25 +129,30 @@ public record HftProperties(
       @Valid Rest rest,
       @Valid Auth auth,
       /**
-       * Optional path to persist the market WS top-of-book cache (JSON). When blank, disabled.
-       * Useful to warm-start after restarts (avoids an empty TOB cache until the first WS update).
+       * Optional path to persist the market WS top-of-book cache (JSON). When blank,
+       * disabled.
+       * Useful to warm-start after restarts (avoids an empty TOB cache until the
+       * first WS update).
        */
       String marketWsCachePath,
       /**
-       * Flush interval for the WS cache snapshot. Ignored when {@code marketWsCachePath} is blank.
+       * Flush interval for the WS cache snapshot. Ignored when
+       * {@code marketWsCachePath} is blank.
        */
       @NotNull @PositiveOrZero Long marketWsCacheFlushMillis,
       /**
-       * Treat the WS as stale when no messages (including PONG) are received for this long.
-       * When stale and {@code marketWsEnabled=true} with active subscriptions, the client auto-reconnects.
+       * Treat the WS as stale when no messages (including PONG) are received for this
+       * long.
+       * When stale and {@code marketWsEnabled=true} with active subscriptions, the
+       * client auto-reconnects.
        * Set to 0 to disable.
        */
       @NotNull @PositiveOrZero Long marketWsStaleTimeoutMillis,
       /**
-       * Minimum interval between reconnect attempts when the WS is stale/disconnected.
+       * Minimum interval between reconnect attempts when the WS is
+       * stale/disconnected.
        */
-      @NotNull @PositiveOrZero Long marketWsReconnectBackoffMillis
-  ) {
+      @NotNull @PositiveOrZero Long marketWsReconnectBackoffMillis) {
     public Polymarket {
       if (clobRestUrl == null || clobRestUrl.isBlank()) {
         clobRestUrl = "https://clob.polymarket.com";
@@ -215,8 +215,7 @@ public record HftProperties(
   public record RateLimit(
       @NotNull Boolean enabled,
       @NotNull @PositiveOrZero Double requestsPerSecond,
-      @NotNull @PositiveOrZero Integer burst
-  ) {
+      @NotNull @PositiveOrZero Integer burst) {
     public RateLimit {
       if (enabled == null) {
         enabled = true;
@@ -234,8 +233,7 @@ public record HftProperties(
       @NotNull Boolean enabled,
       @NotNull @Min(1) Integer maxAttempts,
       @NotNull @PositiveOrZero Long initialBackoffMillis,
-      @NotNull @PositiveOrZero Long maxBackoffMillis
-  ) {
+      @NotNull @PositiveOrZero Long maxBackoffMillis) {
     public Retry {
       if (enabled == null) {
         enabled = true;
@@ -260,8 +258,7 @@ public record HftProperties(
       String apiSecret,
       String apiPassphrase,
       @NotNull @PositiveOrZero Long nonce,
-      @NotNull Boolean autoCreateOrDeriveApiCreds
-  ) {
+      @NotNull Boolean autoCreateOrDeriveApiCreds) {
     public Auth {
       if (signatureType == null) {
         signatureType = 0;
@@ -278,8 +275,7 @@ public record HftProperties(
   public record Risk(
       boolean killSwitch,
       @NotNull @PositiveOrZero BigDecimal maxOrderNotionalUsd,
-      @NotNull @PositiveOrZero BigDecimal maxOrderSize
-  ) {
+      @NotNull @PositiveOrZero BigDecimal maxOrderSize) {
     public Risk {
       if (maxOrderNotionalUsd == null) {
         maxOrderNotionalUsd = BigDecimal.ZERO;
@@ -300,42 +296,10 @@ public record HftProperties(
 
   private static Gabagool defaultGabagool() {
     return new Gabagool(
-        false,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null, // bankrollSmoothingAlpha
-        null, // bankrollMinThreshold
-        null, // bankrollTradingFraction
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-    );
+        false, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null);
   }
 
   /**
@@ -353,12 +317,15 @@ public record HftProperties(
       @NotNull @Min(0) Long minSecondsToEnd,
       @NotNull @Min(0) Long maxSecondsToEnd,
       /**
-       * Target order size in USDC notional (approx. {@code entryPrice * shares} for BUY orders).
+       * Target order size in USDC notional (approx. {@code entryPrice * shares} for
+       * BUY orders).
        */
       @NotNull @PositiveOrZero BigDecimal quoteSize,
       /**
-       * Optional bankroll-based sizing target (0..1). When > 0 and {@code bankrollUsd > 0}, the strategy uses
-       * {@code bankrollUsd * quoteSizeBankrollFraction} as the base order notional instead of {@code quoteSize}.
+       * Optional bankroll-based sizing target (0..1). When > 0 and
+       * {@code bankrollUsd > 0}, the strategy uses
+       * {@code bankrollUsd * quoteSizeBankrollFraction} as the base order notional
+       * instead of {@code quoteSize}.
        */
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double quoteSizeBankrollFraction,
       @NotNull @Min(0) Integer improveTicks,
@@ -369,15 +336,18 @@ public record HftProperties(
       @NotNull @PositiveOrZero BigDecimal bankrollUsd,
       /**
        * How the strategy should interpret bankroll for sizing/caps.
-       * When {@code FIXED}, uses {@code bankrollUsd}. When {@code AUTO_*}, uses the executor bankroll snapshot.
+       * When {@code FIXED}, uses {@code bankrollUsd}. When {@code AUTO_*}, uses the
+       * executor bankroll snapshot.
        */
       @NotNull BankrollMode bankrollMode,
       /**
-       * Refresh interval for executor bankroll snapshots when {@code bankrollMode != FIXED}.
+       * Refresh interval for executor bankroll snapshots when
+       * {@code bankrollMode != FIXED}.
        */
       @NotNull @Min(1_000) Long bankrollRefreshMillis,
       /**
-       * When enabled and {@code bankrollMode != FIXED}, scale the replica share schedule by:
+       * When enabled and {@code bankrollMode != FIXED}, scale the replica share
+       * schedule by:
        * {@code (actualBankrollUsd / bankrollUsd)}.
        */
       @NotNull Boolean dynamicSizingEnabled,
@@ -395,7 +365,8 @@ public record HftProperties(
        */
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double bankrollSmoothingAlpha,
       /**
-       * Minimum bankroll threshold (USDC). Strategy will stop trading if effective bankroll falls below this.
+       * Minimum bankroll threshold (USDC). Strategy will stop trading if effective
+       * bankroll falls below this.
        * Acts as a circuit breaker to protect capital during drawdowns.
        * When 0, circuit breaker is disabled.
        */
@@ -408,26 +379,32 @@ public record HftProperties(
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double bankrollTradingFraction,
       /**
        * Optional cap for total exposure per market instance (USDC notional).
-       * This applies across BOTH legs (UP+DOWN) and includes open orders + positions for that market.
+       * This applies across BOTH legs (UP+DOWN) and includes open orders + positions
+       * for that market.
        *
-       * Example: with maxMarketNotionalUsd=10, the strategy will size the paired quotes so that
+       * Example: with maxMarketNotionalUsd=10, the strategy will size the paired
+       * quotes so that
        * {@code shares * (price_up + price_down) <= 10} (subject to other caps).
        *
        * When 0, per-market cap is disabled.
        */
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double maxOrderBankrollFraction,
       /**
-       * Optional cap for total exposure as a fraction of {@code bankrollUsd} (0..1). When 0, disabled.
+       * Optional cap for total exposure as a fraction of {@code bankrollUsd} (0..1).
+       * When 0, disabled.
        */
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double maxTotalBankrollFraction,
       /**
-       * Minimum complete-set edge required to quote both outcomes (edge = 1 - (p_up + p_down)).
+       * Minimum complete-set edge required to quote both outcomes (edge = 1 - (p_up +
+       * p_down)).
        *
-       * Typical observed maker-side edges for target user are ~0.01–0.02 when WS TOB is fresh.
+       * Typical observed maker-side edges for target user are ~0.01–0.02 when WS TOB
+       * is fresh.
        */
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double completeSetMinEdge,
       /**
-       * Maximum inventory skew (in ticks) applied to one leg and subtracted from the other.
+       * Maximum inventory skew (in ticks) applied to one leg and subtracted from the
+       * other.
        */
       @NotNull @Min(0) Integer completeSetMaxSkewTicks,
       /**
@@ -435,29 +412,34 @@ public record HftProperties(
        */
       @NotNull @PositiveOrZero BigDecimal completeSetImbalanceSharesForMaxSkew,
       /**
-       * When enabled, occasionally cross the spread (taker-like) on the lagging leg to rebalance inventory
+       * When enabled, occasionally cross the spread (taker-like) on the lagging leg
+       * to rebalance inventory
        * near market end.
        */
       @NotNull Boolean completeSetTopUpEnabled,
       /**
-       * Only perform top-ups when {@code secondsToEnd <= completeSetTopUpSecondsToEnd}.
+       * Only perform top-ups when
+       * {@code secondsToEnd <= completeSetTopUpSecondsToEnd}.
        */
       @NotNull @Min(0) Long completeSetTopUpSecondsToEnd,
       /**
-       * Only perform top-ups when the per-market share imbalance is at least this amount.
+       * Only perform top-ups when the per-market share imbalance is at least this
+       * amount.
        */
       @NotNull @PositiveOrZero BigDecimal completeSetTopUpMinShares,
       /**
        * When enabled, perform a fast top-up (taker-like) shortly after one leg fills,
        * to quickly complete the paired position (complete-set style).
        *
-       * This is the key mechanism to match the observed UP/DOWN pairing timing (median ~10s, p90 ~66s).
+       * This is the key mechanism to match the observed UP/DOWN pairing timing
+       * (median ~10s, p90 ~66s).
        */
       @NotNull Boolean completeSetFastTopUpEnabled,
       /**
        * Minimum per-market share imbalance required to trigger a fast top-up.
        *
-       * This should typically be low (e.g., 0.01–1.0) because target user often trades in small sizes (5–20 shares),
+       * This should typically be low (e.g., 0.01–1.0) because target user often
+       * trades in small sizes (5–20 shares),
        * and the pairing behavior applies at those sizes too.
        */
       @NotNull @PositiveOrZero BigDecimal completeSetFastTopUpMinShares,
@@ -470,22 +452,26 @@ public record HftProperties(
        */
       @NotNull @Min(0) Long completeSetFastTopUpMaxSecondsAfterFill,
       /**
-       * Cooldown between fast top-up attempts per market to avoid spamming taker orders.
+       * Cooldown between fast top-up attempts per market to avoid spamming taker
+       * orders.
        */
       @NotNull @Min(0) Long completeSetFastTopUpCooldownMillis,
       /**
-       * Minimum estimated hedged edge required for a fast top-up (edge = 1 - (leadFillPrice + laggingAsk)).
+       * Minimum estimated hedged edge required for a fast top-up (edge = 1 -
+       * (leadFillPrice + laggingAsk)).
        * Use 0.0 for breakeven-or-better hedging.
        */
       @NotNull @PositiveOrZero @jakarta.validation.constraints.DecimalMax("1.0") Double completeSetFastTopUpMinEdge,
       /**
        * Enable taker mode for aggressive order placement.
-       * When enabled, the strategy will sometimes cross the spread (buy at ask) instead of posting at bid.
+       * When enabled, the strategy will sometimes cross the spread (buy at ask)
+       * instead of posting at bid.
        * Based on target user's behavior: ~39% of trades are taker fills.
        */
       @NotNull Boolean takerModeEnabled,
       /**
-       * Maximum edge threshold for taker mode. When edge < this value and spread is tight,
+       * Maximum edge threshold for taker mode. When edge < this value and spread is
+       * tight,
        * prefer taker orders to capture fleeting opportunities.
        * Empirical: gabagool takes more often when edge is low (<1.5%).
        */
@@ -496,8 +482,25 @@ public record HftProperties(
        * Typical: 0.02 (2 ticks) means spread cost of 2 cents per share.
        */
       @NotNull @PositiveOrZero BigDecimal takerModeMaxSpread,
-      @Valid List<GabagoolMarket> markets
-  ) {
+      /**
+       * When enabled, strictly enforce delta-neutrality by restricting new quotes
+       * on the heavy leg and triggering aggressive hedging.
+       */
+      @NotNull Boolean strictPairingEnabled,
+      /**
+       * Maximum share imbalance allowed before shutting down the heavy leg's quotes.
+       */
+      @NotNull @PositiveOrZero BigDecimal maxImbalanceShares,
+      /**
+       * Aggressive hedging (taker) window near market end.
+       */
+      @NotNull @Min(0) Long aggressiveHedgeSecondsToEnd,
+      /**
+       * Minimum edge allowed for aggressive hedging (can be negative to force
+       * closure).
+       */
+      @NotNull @jakarta.validation.constraints.DecimalMin("-1.0") @jakarta.validation.constraints.DecimalMax("1.0") Double aggressiveHedgeMinEdge,
+      @Valid List<GabagoolMarket> markets) {
     public Gabagool {
       if (refreshMillis == null) {
         refreshMillis = 250L;
@@ -539,13 +542,13 @@ public record HftProperties(
         dynamicSizingMaxMultiplier = 5.0;
       }
       if (bankrollSmoothingAlpha == null) {
-        bankrollSmoothingAlpha = 0.1;  // Slow smoothing by default (90% old, 10% new)
+        bankrollSmoothingAlpha = 0.1; // Slow smoothing by default (90% old, 10% new)
       }
       if (bankrollMinThreshold == null) {
-        bankrollMinThreshold = BigDecimal.ZERO;  // Circuit breaker disabled by default
+        bankrollMinThreshold = BigDecimal.ZERO; // Circuit breaker disabled by default
       }
       if (bankrollTradingFraction == null) {
-        bankrollTradingFraction = 1.0;  // Deploy full bankroll by default
+        bankrollTradingFraction = 1.0; // Deploy full bankroll by default
       }
       if (maxOrderBankrollFraction == null) {
         maxOrderBankrollFraction = 0.0;
@@ -590,13 +593,26 @@ public record HftProperties(
         completeSetFastTopUpMinEdge = 0.0;
       }
       if (takerModeEnabled == null) {
-        takerModeEnabled = false;  // Disabled by default - target user's taker fills come from FAST_TOP_UP, not explicit taker mode
+        takerModeEnabled = false; // Disabled by default - target user's taker fills come from FAST_TOP_UP, not
+                                  // explicit taker mode
       }
       if (takerModeMaxEdge == null) {
-        takerModeMaxEdge = 0.015;  // Take when edge < 1.5% (low edge = fleeting opportunity)
+        takerModeMaxEdge = 0.015; // Take when edge < 1.5% (low edge = fleeting opportunity)
       }
       if (takerModeMaxSpread == null) {
-        takerModeMaxSpread = BigDecimal.valueOf(0.02);  // Max 2 ticks spread cost
+        takerModeMaxSpread = BigDecimal.valueOf(0.02); // Max 2 ticks spread cost
+      }
+      if (strictPairingEnabled == null) {
+        strictPairingEnabled = false;
+      }
+      if (maxImbalanceShares == null) {
+        maxImbalanceShares = BigDecimal.valueOf(10);
+      }
+      if (aggressiveHedgeSecondsToEnd == null) {
+        aggressiveHedgeSecondsToEnd = 300L;
+      }
+      if (aggressiveHedgeMinEdge == null) {
+        aggressiveHedgeMinEdge = -0.01;
       }
       markets = sanitizeGabagoolMarkets(markets);
     }
@@ -606,8 +622,9 @@ public record HftProperties(
       String slug,
       String upTokenId,
       String downTokenId,
-      String endTime  // ISO-8601 format
-  ) {}
+      String endTime // ISO-8601 format
+  ) {
+  }
 
   private static List<GabagoolMarket> sanitizeGabagoolMarkets(List<GabagoolMarket> markets) {
     if (markets == null || markets.isEmpty()) {
@@ -619,6 +636,5 @@ public record HftProperties(
         .filter(m -> m.downTokenId() != null && !m.downTokenId().isBlank())
         .toList();
   }
-
 
 }
