@@ -147,7 +147,8 @@ public class GabagoolDirectionalEngine {
 
     private void evaluateMarket(GabagoolMarket market, GabagoolConfig cfg, Instant now) {
         long secondsToEnd = Duration.between(now, market.endTime()).getSeconds();
-        long maxLifetimeSeconds = "updown-15m".equals(market.marketType()) ? 900L : 3600L;
+        long maxLifetimeSeconds = "updown-5m".equals(market.marketType()) ? 300L :
+                "updown-15m".equals(market.marketType()) ? 900L : 3600L;
 
         if (secondsToEnd < 0 || secondsToEnd > maxLifetimeSeconds) {
             orderManager.cancelMarketOrders(market, CancelReason.OUTSIDE_LIFETIME, secondsToEnd);
