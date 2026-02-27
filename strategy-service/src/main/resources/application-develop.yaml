@@ -49,10 +49,10 @@ hft:
       complete-set-fast-top-up-cooldown-millis: 4000  # 4s cooldown between top-ups
       complete-set-fast-top-up-min-edge: 0            # No edge requirement for hedging
 
-      # Taker mode: MuseumOfBees sweeps aggressively at any price
-      taker-mode-enabled: true
-      taker-mode-max-edge: 0.50                       # Accept up to 50c edge (effectively no filter)
-      taker-mode-max-spread: 0.10                     # Accept up to 10c spread
+      # Taker mode disabled: ALL orders are GTC limit (passive maker)
+      taker-mode-enabled: false
+      taker-mode-max-edge: 0.50
+      taker-mode-max-spread: 0.10
 
 logging:
   level:

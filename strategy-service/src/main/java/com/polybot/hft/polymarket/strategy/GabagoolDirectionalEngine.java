@@ -216,22 +216,7 @@ public class GabagoolDirectionalEngine {
             return;
         }
 
-        // Optional taker mode
-        BigDecimal plannedEdge = BigDecimal.ONE.subtract(upEntryPrice.add(downEntryPrice));
-        if (shouldTake(plannedEdge, upBook, downBook, cfg)) {
-            Direction takeLeg = decideTakerLeg(inv, upBook, downBook, cfg);
-            if (takeLeg == Direction.UP) {
-                maybeTakeToken(market, market.upTokenId(), Direction.UP, upBook, downBook, cfg, secondsToEnd);
-                maybeQuoteToken(market, market.downTokenId(), Direction.DOWN, downBook, upBook, cfg, secondsToEnd, skewTicksDown, downTickSize);
-                return;
-            } else if (takeLeg == Direction.DOWN) {
-                maybeTakeToken(market, market.downTokenId(), Direction.DOWN, downBook, upBook, cfg, secondsToEnd);
-                maybeQuoteToken(market, market.upTokenId(), Direction.UP, upBook, downBook, cfg, secondsToEnd, skewTicksUp, upTickSize);
-                return;
-            }
-        }
-
-        // Maker mode
+        // All orders are GTC limit (passive maker) — no taker/market orders
         maybeQuoteToken(market, market.upTokenId(), Direction.UP, upBook, downBook, cfg, secondsToEnd, skewTicksUp, upTickSize);
         maybeQuoteToken(market, market.downTokenId(), Direction.DOWN, downBook, upBook, cfg, secondsToEnd, skewTicksDown, downTickSize);
     }
@@ -321,8 +306,9 @@ public class GabagoolDirectionalEngine {
         if (leadFillPrice == null) {
             leadFillPrice = laggingLeg == Direction.DOWN ? upBook.bestBid() : downBook.bestBid();
         }
-        if (leadFillPrice != null) {
-            BigDecimal hedgedEdge = BigDecimal.ONE.subtract(leadFillPrice.add(laggingBook.bestAsk()));
+        if (leadFillPrice != null && laggingBook.bestBid() != null) {
+            BigDecimal laggingBidPrice = laggingBook.bestBid().add(BigDecimal.valueOf(0.01));
+            BigDecimal hedgedEdge = BigDecimal.ONE.subtract(leadFillPrice.add(laggingBidPrice));
             if (hedgedEdge.compareTo(BigDecimal.valueOf(cfg.completeSetFastTopUpMinEdge())) < 0) return;
         }
 
@@ -336,22 +322,26 @@ public class GabagoolDirectionalEngine {
         if (tokenId == null || book == null) return;
         if (imbalanceShares == null || imbalanceShares.compareTo(BigDecimal.valueOf(0.01)) < 0) return;
 
-        BigDecimal bestAsk = book.bestAsk();
-        if (bestAsk == null || bestAsk.compareTo(BigDecimal.valueOf(0.99)) > 0) return;
-
         BigDecimal bestBid = book.bestBid();
-        if (bestBid != null) {
-            BigDecimal spread = bestAsk.subtract(bestBid);
-            if (spread.compareTo(cfg.takerModeMaxSpread()) > 0) return;
-        }
+        BigDecimal bestAsk = book.bestAsk();
+        if (bestBid == null || bestAsk == null) return;
+        if (bestBid.compareTo(BigDecimal.valueOf(0.01)) < 0) return;
+        if (bestAsk.compareTo(BigDecimal.valueOf(0.99)) > 0) return;
 
         BigDecimal topUpShares = imbalanceShares;
+        // GTC limit: use best bid + 1 tick (passive, rests on book)
+        BigDecimal topUpPrice = bestBid.add(BigDecimal.valueOf(0.01));
+        if (topUpPrice.compareTo(bestAsk) >= 0) {
+            topUpPrice = bestAsk.subtract(BigDecimal.valueOf(0.01));
+        }
+        if (topUpPrice.compareTo(BigDecimal.valueOf(0.01)) < 0) return;
+
         BigDecimal bankrollUsd = bankrollService.resolveEffective(cfg);
 
         if (bankrollUsd != null && bankrollUsd.compareTo(BigDecimal.ZERO) > 0) {
             if (cfg.maxOrderBankrollFraction() > 0) {
                 BigDecimal perOrderCap = bankrollUsd.multiply(BigDecimal.valueOf(cfg.maxOrderBankrollFraction()));
-                BigDecimal capShares = perOrderCap.divide(bestAsk, 2, RoundingMode.DOWN);
+                BigDecimal capShares = perOrderCap.divide(topUpPrice, 2, RoundingMode.DOWN);
                 topUpShares = topUpShares.min(capShares);
             }
             if (cfg.maxTotalBankrollFraction() > 0) {
@@ -359,14 +349,14 @@ public class GabagoolDirectionalEngine {
                 BigDecimal exposure = quoteCalculator.calculateExposure(orderManager.getOpenOrders(), positionTracker.getAllInventories());
                 BigDecimal remaining = totalCap.subtract(exposure);
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) return;
-                BigDecimal capShares = remaining.divide(bestAsk, 2, RoundingMode.DOWN);
+                BigDecimal capShares = remaining.divide(topUpPrice, 2, RoundingMode.DOWN);
                 topUpShares = topUpShares.min(capShares);
             }
         }
 
         BigDecimal maxNotionalUsd = properties.risk().maxOrderNotionalUsd();
         if (maxNotionalUsd != null && maxNotionalUsd.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal capShares = maxNotionalUsd.divide(bestAsk, 2, RoundingMode.DOWN);
+            BigDecimal capShares = maxNotionalUsd.divide(topUpPrice, 2, RoundingMode.DOWN);
             topUpShares = topUpShares.min(capShares);
         }
 
@@ -380,9 +370,9 @@ public class GabagoolDirectionalEngine {
             orderManager.cancelOrder(tokenId, CancelReason.REPLACE_PRICE, secondsToEnd, book, otherBook);
         }
 
-        log.info("GABAGOOL: TOP-UP {} on {} at ask {} (imbalance={}, topUpShares={}, secondsToEnd={})",
-                direction, market.slug(), bestAsk, imbalanceShares, topUpShares, secondsToEnd);
-        orderManager.placeOrder(market, tokenId, direction, bestAsk, topUpShares, secondsToEnd, null, book, otherBook, existing, reason);
+        log.info("GABAGOOL: TOP-UP {} on {} GTC limit at {} (imbalance={}, topUpShares={}, secondsToEnd={})",
+                direction, market.slug(), topUpPrice, imbalanceShares, topUpShares, secondsToEnd);
+        orderManager.placeOrder(market, tokenId, direction, topUpPrice, topUpShares, secondsToEnd, null, book, otherBook, existing, reason);
     }
 
     private boolean shouldTake(BigDecimal edge, TopOfBook upBook, TopOfBook downBook, GabagoolConfig cfg) {
