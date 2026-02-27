@@ -18,10 +18,10 @@ executor:
     enabled: true
     fills-enabled: true
     fill-poll-millis: 500
-    maker-fill-probability-per-poll: 0.01
-    maker-fill-probability-multiplier-per-tick: 1.0
-    maker-fill-probability-max-per-poll: 0.015
-    maker-fill-fraction-of-remaining: 0.25
+    maker-fill-probability-per-poll: 0.08   # Higher fill rate for 5m market speed
+    maker-fill-probability-multiplier-per-tick: 1.5
+    maker-fill-probability-max-per-poll: 0.15
+    maker-fill-fraction-of-remaining: 0.50  # Fill half of remaining per event
 
   onchain:
     rpc-url: ${POLYGON_RPC_URL:https://polygon-rpc.com}

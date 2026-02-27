@@ -214,6 +214,14 @@ public class QuoteCalculator {
         if (market == null || market.slug() == null) return null;
         String slug = market.slug();
 
+        if (slug.startsWith("btc-updown-5m-") || slug.startsWith("eth-updown-5m-")) {
+            // 5m markets: MuseumOfBees uses fixed ~20 share base, larger early
+            if (secondsToEnd < 60) return BigDecimal.valueOf(15);
+            if (secondsToEnd < 120) return BigDecimal.valueOf(18);
+            if (secondsToEnd < 180) return BigDecimal.valueOf(20);
+            if (secondsToEnd < 240) return BigDecimal.valueOf(20);
+            return BigDecimal.valueOf(20);
+        }
         if (slug.startsWith("btc-updown-15m-")) {
             if (secondsToEnd < 60) return BigDecimal.valueOf(11);
             if (secondsToEnd < 180) return BigDecimal.valueOf(13);

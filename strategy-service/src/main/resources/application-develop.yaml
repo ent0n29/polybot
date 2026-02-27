@@ -15,44 +15,44 @@ hft:
   strategy:
     gabagool:
       enabled: true
-      refresh-millis: 500
-      min-replace-millis: 500           # Min time before replacing an order
-      min-seconds-to-end: 0
-      max-seconds-to-end: 3600
-      improve-ticks: 0
+      refresh-millis: 2000              # 2-second polling loop (matches MuseumOfBees' 2s order interval)
+      min-replace-millis: 2000          # Min 2s before replacing (matches observed gap pattern)
+      min-seconds-to-end: 0             # No minimum — trade from market open
+      max-seconds-to-end: 300           # 5-minute markets (300s)
+      improve-ticks: 0                  # No price improvement — sweep at market
 
-      # Dynamic sizing: FIXED mode for sim, AUTO_CASH for live
-      quote-size: 10
-      quote-size-bankroll-fraction: 0.001
+      # Sizing: Fixed-share model matching MuseumOfBees' 20-share base
+      quote-size: 20                    # Base order: 20 shares (MuseumOfBees' mode/median)
+      quote-size-bankroll-fraction: 0.0 # Disabled — use fixed shares not $ fraction
       bankroll-mode: FIXED
-      bankroll-usd: 500
+      bankroll-usd: 5000               # $5K paper bankroll for 5m complete-set arb
       bankroll-refresh-millis: 10000
       bankroll-smoothing-alpha: 0.2
-      bankroll-min-threshold: 50
-      bankroll-trading-fraction: 0.8
-      max-order-bankroll-fraction: 0.02
-      max-total-bankroll-fraction: 0.5
+      bankroll-min-threshold: 100
+      bankroll-trading-fraction: 0.9    # Use 90% of bankroll
+      max-order-bankroll-fraction: 0.05 # Max 5% per order ($250)
+      max-total-bankroll-fraction: 0.8  # Max 80% total exposure
 
-      # Complete-set arbitrage configuration
-      # NOTE: Top traders don't pre-filter by edge - they quote both sides aggressively
-      # Edge emerges from spread capture + inventory skewing, not from strict filtering
-      complete-set-min-edge: 0.001                    # Near-zero: aggressive quoting
-      complete-set-max-skew-ticks: 0                  # Max ticks to skew based on inventory
-      complete-set-imbalance-shares-for-max-skew: 5000 # Shares imbalance for max skew
+      # Complete-set arbitrage: MuseumOfBees formula
+      # PnL = min(Nup,Ndown) × [1 - (Pup + Pdown)]
+      # NO minimum edge filter — sweep both sides aggressively
+      complete-set-min-edge: 0.0                      # ZERO: no edge filter (key MuseumOfBees trait)
+      complete-set-max-skew-ticks: 0                  # No inventory skewing
+      complete-set-imbalance-shares-for-max-skew: 5000
       complete-set-top-up-enabled: true
-      complete-set-top-up-seconds-to-end: 120         # Start top-up this far from end
-      complete-set-top-up-min-shares: 80              # Min imbalance to trigger top-up
-      complete-set-fast-top-up-enabled: false
-      complete-set-fast-top-up-min-shares: 30         # Min shares for fast top-up
-      complete-set-fast-top-up-min-seconds-after-fill: 30  # Min seconds after fill
-      complete-set-fast-top-up-max-seconds-after-fill: 180 # Max seconds after fill
-      complete-set-fast-top-up-cooldown-millis: 45000 # Cooldown between fast top-ups
-      complete-set-fast-top-up-min-edge: 0            # Breakeven or better for pair completion
+      complete-set-top-up-seconds-to-end: 87          # ~87s cutoff (MuseumOfBees median end cutoff)
+      complete-set-top-up-min-shares: 20              # Top-up when 20+ share imbalance
+      complete-set-fast-top-up-enabled: true           # Enabled: fast hedging after fills
+      complete-set-fast-top-up-min-shares: 10         # Top-up at 10+ share imbalance
+      complete-set-fast-top-up-min-seconds-after-fill: 2   # Min 2s after fill (matches 2s interval)
+      complete-set-fast-top-up-max-seconds-after-fill: 60  # Max 60s window to hedge
+      complete-set-fast-top-up-cooldown-millis: 4000  # 4s cooldown between top-ups
+      complete-set-fast-top-up-min-edge: 0            # No edge requirement for hedging
 
-      # Taker mode - cross the spread when edge is favorable
+      # GTC taker: aggressive GTC limit at best ask for immediate fills
       taker-mode-enabled: true
-      taker-mode-max-edge: 0.004                      # Max edge to take (0.4 cents)
-      taker-mode-max-spread: 0.01                     # Max spread to cross (1 cent)
+      taker-mode-max-edge: 0.50                       # Accept wide edge (sweep aggressively)
+      taker-mode-max-spread: 0.10                     # Accept up to 10c spread
 
 logging:
   level:
